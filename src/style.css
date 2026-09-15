@@ -758,17 +758,25 @@ small {
   }
 }
 
-/* =========================
-   FEES / HỌC PHÍ
-========================= */
+/* =========================================
+   HỌC PHÍ
+========================================= */
 
 .fee-toolbar {
   padding: 20px;
   margin-bottom: 16px;
 }
 
-.fee-filter {
+.fee-toolbar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
   margin-bottom: 18px;
+}
+
+.fee-filter {
+  flex: 1;
 }
 
 .fee-filter .field {
@@ -776,8 +784,86 @@ small {
   margin: 0;
 }
 
-.fee-toolbar .fee-summary {
+.pdf-button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.fee-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
   margin: 0;
+}
+
+.fee-summary div {
+  padding: 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.fee-summary span,
+.fee-summary b {
+  display: block;
+}
+
+.fee-summary span {
+  font-size: 13px;
+  color: #667085;
+}
+
+.fee-summary b {
+  font-size: 18px;
+  margin-top: 5px;
+}
+
+.fee-debt {
+  color: #b42318 !important;
+}
+
+.fee-paid {
+  color: #087443 !important;
+}
+
+/* =========================================
+   BẢNG HỌC PHÍ
+========================================= */
+
+.fee-table-wrap {
+  overflow-x: auto;
+}
+
+.fee-table {
+  min-width: 1150px;
+}
+
+.fee-table th {
+  white-space: nowrap;
+}
+
+.fee-table td {
+  vertical-align: middle;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+.money-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.student-fee-name b {
+  display: block;
+  font-size: 13px;
+}
+
+.student-fee-name small {
+  color: #98a2b3;
+  font-size: 11px;
+  margin-top: 3px;
 }
 
 .payment-inline {
@@ -798,10 +884,11 @@ small {
 
 .payment-inline input:focus {
   border-color: #6366f1;
+  box-shadow: 0 0 0 2px #6366f122;
 }
 
 .payment-inline .primary {
-  padding: 8px 10px;
+  padding: 8px 11px;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -811,43 +898,42 @@ small {
   cursor: not-allowed;
 }
 
-/* Căn giữa một số cột trong bảng học phí */
-.table-wrap th:first-child,
-.table-wrap td:first-child {
-  text-align: center;
+.empty-fee {
+  text-align: center !important;
+  padding: 40px !important;
+  color: #667085;
 }
 
-.table-wrap th:nth-child(4),
-.table-wrap td:nth-child(4),
-.table-wrap th:nth-child(5),
-.table-wrap td:nth-child(5) {
-  text-align: center;
-}
+/* =========================================
+   RESPONSIVE
+========================================= */
 
-/* Không cho tên học sinh bị quá nhỏ */
-.table-wrap td small {
-  font-size: 11px;
-  color: #98a2b3;
-}
-
-/* Số tiền còn thiếu */
-.table-wrap td strong {
-  white-space: nowrap;
-}
-
-/* Responsive bảng học phí */
 @media (max-width: 900px) {
-  .fee-toolbar .fee-summary {
-    grid-template-columns: repeat(2, 1fr);
+  .fee-toolbar-top {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .payment-inline {
-    min-width: 170px;
+  .fee-filter .field {
+    max-width: 100%;
+  }
+
+  .pdf-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fee-summary {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 600px) {
-  .fee-toolbar .fee-summary {
+  .fee-toolbar {
+    padding: 15px;
+  }
+
+  .fee-summary {
     grid-template-columns: 1fr;
   }
 
