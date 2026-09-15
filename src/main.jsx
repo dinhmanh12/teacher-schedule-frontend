@@ -733,76 +733,203 @@ function Attendance({ students, schedules, attendance, onMark }) {
   );
 }
 function Fees({ students, attendance, onPayment }) {
-  const [sid, setSid] = useState(students[0]?.id || "");
-  const s = students.find((x) => x.id === Number(sid));
-  const earned = attendance
-    .filter((a) => a.studentId === s?.id && a.status === "attended")
-    .reduce((n, a) => n + Number(a.fee || 0), 0);
-  const paid = Number(s?.totalPaid || 0);
-  const [amount, setAmount] = useState(0);
+  const [classFilter, setClassFilter] = useState("Tất cả");
+  const [amounts, setAmounts] = useState({});
+
+  const classNames = [
+    "Tất cả",
+    ...new Set(students.map((s) => s.className).filter(Boolean)),
+  ];
+
+  const filteredStudents =
+    classFilter === "Tất cả"
+      ? students
+      : students.filter((s) => s.className === classFilter);
+
+  const getEarned = (student) => {
+    return attendance
+      .filter(
+        (a) =>
+          a.studentId === student.id &&
+          a.status === "attended",
+      )
+      .reduce((total, a) => total + Number(a.fee || 0), 0);
+  };
+
+  const getPaid = (student) => {
+    return Number(student.totalPaid || 0);
+  };
+
+  const totalEarned = filteredStudents.reduce(
+    (total, student) => total + getEarned(student),
+    0,
+  );
+
+  const totalPaid = filteredStudents.reduce(
+    (total, student) => total + getPaid(student),
+    0,
+  );
+
+  const totalDebt = totalEarned - totalPaid;
+
+  const handlePayment = async (student) => {
+    const amount = Number(amounts[student.id] || 0);
+
+    if (amount <= 0) return;
+
+    await onPayment({
+      studentId: student.id,
+      month: new Date().toISOString().slice(0, 7),
+      amount,
+    });
+
+    setAmounts((prev) => ({
+      ...prev,
+      [student.id]: "",
+    }));
+  };
+
   return (
     <>
       <PageTitle
         title="Học phí"
-        desc="Tổng tiền = số buổi đã học × phí/buổi. Có thể ghi nhận các khoản đã thanh toán."
+        desc="Theo dõi học phí của tất cả học sinh theo từng lớp."
       />
-      <div className="card form-card">
-        <label className="field">
-          <span>Học sinh</span>
-          <select value={sid} onChange={(e) => setSid(e.target.value)}>
-            {students.map((x) => (
-              <option value={x.id} key={x.id}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {s && (
-          <div className="fee-summary">
-            <div>
-              <span>Phí/buổi</span>
-              <b>{money(s.feePerLesson)}</b>
-            </div>
-            <div>
-              <span>Buổi đã học</span>
-              <b>{s.attendedLessons || 0}</b>
-            </div>
-            <div>
-              <span>Tổng phải thu</span>
-              <b>{money(earned)}</b>
-            </div>
-            <div>
-              <span>Đã thanh toán</span>
-              <b>{money(paid)}</b>
-            </div>
-            <div>
-              <span>Còn lại</span>
-              <b>{money(earned - paid)}</b>
-            </div>
-          </div>
-        )}
-        <div className="payment-row">
-          <input
-            type="number"
-            min="0"
-            placeholder="Số tiền thanh toán"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <button
-            className="primary"
-            onClick={() =>
-              amount > 0 &&
-              onPayment({
-                studentId: s.id,
-                month: new Date().toISOString().slice(0, 7),
-                amount: Number(amount),
-              })
-            }
-          >
-            Ghi nhận thanh toán
-          </button>
+
+      <div className="card fee-toolbar">
+        <div className="fee-filter">
+          <label className="field">
+            <span>Lớp học</span>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+            >
+              {classNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+
+        <div className="fee-summary">
+          <div>
+            <span>Học sinh</span>
+            <b>{filteredStudents.length}</b>
+          </div>
+
+          <div>
+            <span>Tổng phải thu</span>
+            <b>{money(totalEarned)}</b>
+          </div>
+
+          <div>
+            <span>Đã thu</span>
+            <b>{money(totalPaid)}</b>
+          </div>
+
+          <div>
+            <span>Còn thiếu</span>
+            <b>{money(totalDebt)}</b>
+          </div>
+        </div>
+      </div>
+
+      <div className="card table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>STT</th>
+              <th>Học sinh</th>
+              <th>Lớp</th>
+              <th>Phí/buổi</th>
+              <th>Buổi học</th>
+              <th>Tổng phải thu</th>
+              <th>Đã thu</th>
+              <th>Còn thiếu</th>
+              <th>Thanh toán</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredStudents.map((student, index) => {
+              const earned = getEarned(student);
+              const paid = getPaid(student);
+              const debt = earned - paid;
+
+              return (
+                <tr key={student.id}>
+                  <td>{index + 1}</td>
+
+                  <td>
+                    <b>{student.name}</b>
+                    {student.phone && <small>{student.phone}</small>}
+                  </td>
+
+                  <td>
+                    <span className="tag">
+                      {student.className}
+                    </span>
+                  </td>
+
+                  <td>{money(student.feePerLesson)}</td>
+
+                  <td>{student.attendedLessons || 0}</td>
+
+                  <td>
+                    <b>{money(earned)}</b>
+                  </td>
+
+                  <td>{money(paid)}</td>
+
+                  <td>
+                    <strong
+                      style={{
+                        color: debt > 0 ? "#b42318" : "#087443",
+                      }}
+                    >
+                      {money(debt)}
+                    </strong>
+                  </td>
+
+                  <td>
+                    <div className="payment-inline">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Số tiền"
+                        value={amounts[student.id] || ""}
+                        onChange={(e) =>
+                          setAmounts((prev) => ({
+                            ...prev,
+                            [student.id]: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <button
+                        className="primary"
+                        onClick={() => handlePayment(student)}
+                        disabled={!Number(amounts[student.id] || 0)}
+                      >
+                        Thu
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+
+            {filteredStudents.length === 0 && (
+              <tr>
+                <td colSpan="9" style={{ textAlign: "center", padding: 30 }}>
+                  Không có học sinh.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </>
   );
