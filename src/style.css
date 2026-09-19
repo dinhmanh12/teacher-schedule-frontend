@@ -984,3 +984,15 @@ small {
   .fee-toolbar-top{grid-template-columns:1fr}
   .fee-toolbar-top .pdf-button{grid-column:auto;width:100%}
 }
+
+.month-schedule{margin:16px 0}
+.month-schedule-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #e5e7eb}
+.month-schedule-head span{color:#6b7280;font-size:13px}
+.month-list{padding:8px 16px}
+.month-lesson{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid #f0f1f4}
+.month-lesson:last-child{border-bottom:0}
+.month-date{width:52px;text-align:center;line-height:1}
+.month-date b{font-size:20px}.month-date span{font-size:11px;color:#6b7280}
+.month-info{flex:1;display:flex;flex-direction:column;gap:4px}.month-info span{font-size:13px;color:#6b7280}
+.status-tag{padding:5px 9px;border-radius:999px;font-size:12px;font-weight:600}.status-tag.attended{background:#dcfce7;color:#166534}.status-tag.absent{background:#fee2e2;color:#991b1b}.status-tag.pending{background:#f3f4f6;color:#4b5563}
+.danger-icon{color:#b91c1c}
