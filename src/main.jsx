@@ -1816,19 +1816,25 @@ function Fees({ students, attendance, payments, onPayment, settings }) {
     ),
   ].sort();
 
-  const filtered = useMemo(() => {
-    if (filterType === "student") {
-      return students.filter((s) => Number(s.id) === Number(selectedStudent));
-    }
-
-    if (filterType === "class") {
+const filtered = useMemo(() => {
+  switch (filterType) {
+    case "student":
       return students.filter(
-        (s) => String(s.className || "") === String(selectedClass),
+        (s) => Number(s.id) === Number(selectedStudent),
       );
-    }
 
-    return students;
-  }, [students, filterType, selectedClass, selectedStudent]);
+    case "class":
+      return students.filter(
+        (s) =>
+          String(s.className || "").trim() ===
+          String(selectedClass || "").trim(),
+      );
+
+    case "all":
+    default:
+      return [...students];
+  }
+}, [students, filterType, selectedClass, selectedStudent]);
 
   const getAtt = (s) =>
     attendance.filter(
@@ -1887,215 +1893,530 @@ function Fees({ students, attendance, payments, onPayment, settings }) {
     return btoa(bin);
   };
 
-  const exportPDF = async () => {
-    if (!filtered.length) {
-      alert("Không có học sinh để xuất PDF.");
-      return;
-    }
+const exportPDF = async () => {
+  const exportStudents =
+    filterType === "student"
+      ? students.filter(
+          (s) => Number(s.id) === Number(selectedStudent),
+        )
+      : filterType === "class"
+        ? students.filter(
+            (s) =>
+              String(s.className || "").trim() ===
+              String(selectedClass || "").trim(),
+          )
+        : [...students];
 
-    try {
-      setPdfLoading(true);
+  if (!exportStudents.length) {
+    alert("Không có học sinh để xuất PDF.");
+    return;
+  }
 
-      const [jm, am] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
+  try {
+    setPdfLoading(true);
 
+    const [jm, am] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+
+    const autoTable = am.default || am;
+
+    const [regular, bold] = await Promise.all([
+      loadFont("/fonts/NotoSans-Regular.ttf"),
+      loadFont("/fonts/NotoSans-Bold.ttf"),
+    ]);
+
+    // =====================================================
+    // 1. TRƯỜNG HỢP MỘT HỌC SINH
+    //    -> Xuất chi tiết từng buổi
+    // =====================================================
+    if (filterType === "student") {
       const doc = new jm.jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
 
-      const autoTable = am.default || am;
-
-      const [regular, bold] = await Promise.all([
-        loadFont("/fonts/NotoSans-Regular.ttf"),
-        loadFont("/fonts/NotoSans-Bold.ttf"),
-      ]);
-
       doc.addFileToVFS("NotoSans-Regular.ttf", regular);
-
-      doc.addFont("NotoSans-Regular.ttf", "NotoSans", "normal");
+      doc.addFont(
+        "NotoSans-Regular.ttf",
+        "NotoSans",
+        "normal",
+      );
 
       doc.addFileToVFS("NotoSans-Bold.ttf", bold);
+      doc.addFont(
+        "NotoSans-Bold.ttf",
+        "NotoSans",
+        "bold",
+      );
 
-      doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
+      const s = exportStudents[0];
 
-      for (let si = 0; si < filtered.length; si++) {
-        if (si > 0) {
-          doc.addPage();
-        }
+      const rows = getAtt(s)
+        .sort((a, b) =>
+          String(a.lessonDate).localeCompare(
+            String(b.lessonDate),
+          ),
+        )
+        .map((a, i) => {
+          const date = new Date(
+            `${a.lessonDate}T12:00:00`,
+          );
 
-        const s = filtered[si];
+          const dayNames = [
+            "Chủ nhật",
+            "Thứ 2",
+            "Thứ 3",
+            "Thứ 4",
+            "Thứ 5",
+            "Thứ 6",
+            "Thứ 7",
+          ];
 
-const rows = getAtt(s)
-  .sort((a, b) =>
-    String(a.lessonDate).localeCompare(String(b.lessonDate)),
-  )
-  .map((a, i) => {
-    const date = new Date(`${a.lessonDate}T12:00:00`);
-
-    const dayNames = [
-      "Chủ nhật",
-      "Thứ 2",
-      "Thứ 3",
-      "Thứ 4",
-      "Thứ 5",
-      "Thứ 6",
-      "Thứ 7",
-    ];
-
-    return [
-      i + 1,
-      String(a.lessonDate).split("-").reverse().join("/"),
-      dayNames[date.getDay()],
-      a.time || "",
-      a.subject || "",
-      money(a.fee),
-    ];
-  });
-
-        const total = getEarned(s);
-        const paid = getPaid(s);
-        const debt = total - paid;
-
-        doc.setFont("NotoSans", "bold");
-        doc.setFontSize(18);
-
-        doc.text("PHIẾU HỌC PHÍ", 105, 18, {
-          align: "center",
+          return [
+            i + 1,
+            String(a.lessonDate)
+              .split("-")
+              .reverse()
+              .join("/"),
+            dayNames[date.getDay()],
+            a.time || "",
+            a.subject || "",
+            money(a.fee),
+          ];
         });
 
-        doc.setFontSize(12);
+      const total = getEarned(s);
 
-        doc.text(`Học sinh: ${s.name}`, 15, 31);
+      doc.setFont("NotoSans", "bold");
+      doc.setFontSize(18);
 
-        doc.setFont("NotoSans", "normal");
+      doc.text("PHIẾU HỌC PHÍ", 105, 18, {
+        align: "center",
+      });
 
-        doc.text(`Lớp: ${s.className || ""}`, 15, 38);
+      doc.setFontSize(12);
 
-        doc.text(`Tháng: ${month.slice(5, 7)}/${month.slice(0, 4)}`, 15, 45);
+      doc.text(
+        `Học sinh: ${s.name}`,
+        15,
+        31,
+      );
 
-        doc.text(`Phí/buổi: ${money(s.feePerLesson)}`, 110, 38);
+      doc.setFont("NotoSans", "normal");
 
-        doc.text(`Số buổi đã học: ${rows.length}`, 110, 45);
+      doc.text(
+        `Lớp: ${s.className || ""}`,
+        15,
+        38,
+      );
 
-        autoTable(doc, {
-          startY: 52,
+      doc.text(
+        `Tháng: ${month.slice(5, 7)}/${month.slice(
+          0,
+          4,
+        )}`,
+        15,
+        45,
+      );
 
-          head: [["STT", "Ngày", "Thứ", "Giờ", "Môn", "Số tiền"]],
+      doc.text(
+        `Phí/buổi: ${money(s.feePerLesson)}`,
+        110,
+        38,
+      );
 
-          body: rows,
+      doc.text(
+        `Số buổi đã học: ${rows.length}`,
+        110,
+        45,
+      );
 
-          theme: "grid",
+      autoTable(doc, {
+        startY: 52,
 
-          styles: {
-            font: "NotoSans",
-            fontSize: 9,
+        head: [[
+          "STT",
+          "Ngày",
+          "Thứ",
+          "Giờ",
+          "Môn",
+          "Số tiền",
+        ]],
+
+        body: rows,
+
+        theme: "grid",
+
+        styles: {
+          font: "NotoSans",
+          fontSize: 9,
+        },
+
+        headStyles: {
+          font: "NotoSans",
+          fontStyle: "bold",
+        },
+
+        columnStyles: {
+          0: {
+            cellWidth: 12,
+            halign: "center",
           },
 
-          headStyles: {
-            font: "NotoSans",
-            fontStyle: "bold",
+          1: {
+            cellWidth: 25,
+            halign: "center",
           },
 
-          columnStyles: {
-            0: {
-              cellWidth: 12,
-              halign: "center",
-            },
-
-            1: {
-              cellWidth: 25,
-              halign: "center",
-            },
-
-            2: {
-              cellWidth: 25,
-              halign: "center",
-            },
-
-            3: {
-              cellWidth: 30,
-              halign: "center",
-            },
-
-            4: {
-              cellWidth: 40,
-            },
-
-            5: {
-              halign: "right",
-            },
+          2: {
+            cellWidth: 25,
+            halign: "center",
           },
-        });
 
-        let y = doc.lastAutoTable.finalY + 10;
+          3: {
+            cellWidth: 30,
+            halign: "center",
+          },
 
-        doc.setFont("NotoSans", "bold");
+          4: {
+            cellWidth: 45,
+          },
 
-        doc.text(`TỔNG ĐÃ HỌC: ${rows.length} BUỔI`, 15, y);
+          5: {
+            halign: "right",
+          },
+        },
+      });
 
-        doc.text(`TỔNG HỌC PHÍ: ${money(total)}`, 115, y);
+      let y = doc.lastAutoTable.finalY + 10;
 
-        y += 9;
+      doc.setFont("NotoSans", "bold");
 
-        doc.setFont("NotoSans", "normal");
+      doc.text(
+        `TỔNG ĐÃ HỌC: ${rows.length} BUỔI`,
+        15,
+        y,
+      );
 
-        y += 14;
+      doc.text(
+        `TỔNG HỌC PHÍ: ${money(total)}`,
+        110,
+        y,
+      );
 
-        doc.setFont("NotoSans", "bold");
+      y += 14;
 
-        doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
+      doc.text(
+        "THÔNG TIN CHUYỂN KHOẢN",
+        15,
+        y,
+      );
 
-        y += 7;
+      y += 7;
 
-        doc.setFont("NotoSans", "normal");
+      doc.setFont("NotoSans", "normal");
 
-        doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, y);
+      doc.text(
+        `Ngân hàng: ${settings?.bankName || ""}`,
+        15,
+        y,
+      );
 
-        y += 6;
+      y += 6;
 
-        doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, y);
+      doc.text(
+        `Số tài khoản: ${settings?.bankAccount || ""}`,
+        15,
+        y,
+      );
 
-        y += 6;
+      y += 6;
 
-        doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
+      doc.text(
+        `Chủ tài khoản: ${settings?.bankOwner || ""}`,
+        15,
+        y,
+      );
 
-        y += 10;
+      y += 10;
 
-        doc.setFont("NotoSans", "bold");
+      doc.setFont("NotoSans", "bold");
 
-        doc.text("LƯU Ý", 15, y);
+      doc.text("LƯU Ý", 15, y);
 
-        y += 6;
+      y += 6;
 
-        doc.setFont("NotoSans", "normal");
+      doc.setFont("NotoSans", "normal");
 
-        const notes = doc.splitTextToSize(settings?.parentNote || "", 175);
+      const notes = doc.splitTextToSize(
+        settings?.parentNote || "",
+        175,
+      );
 
-        doc.text(notes, 15, y);
-      }
+      doc.text(notes, 15, y);
 
-      let filename = `hoc-phi-${month}`;
+      const filename =
+        `hoc-phi-${month}-` +
+        `${s.name.replaceAll(" ", "-")}.pdf`;
 
-      if (filterType === "student" && filtered.length === 1) {
-        filename += `-${filtered[0].name.replaceAll(" ", "-")}`;
-      } else if (filterType === "class" && selectedClass) {
-        filename += `-lop-${selectedClass.replaceAll(" ", "-")}`;
-      } else {
-        filename += "-tat-ca";
-      }
+      doc.save(filename);
 
-      doc.save(`${filename}.pdf`);
-    } catch (e) {
-      console.error(e);
-      alert("Không thể tạo PDF. Hãy kiểm tra font NotoSans.");
-    } finally {
-      setPdfLoading(false);
+      return;
     }
-  };
+
+    // =====================================================
+    // 2. TẤT CẢ / TOÀN BỘ LỚP
+    //    -> CHỈ 1 BẢNG TỔNG HỢP
+    // =====================================================
+
+    const doc = new jm.jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
+
+    doc.addFileToVFS("NotoSans-Regular.ttf", regular);
+    doc.addFont(
+      "NotoSans-Regular.ttf",
+      "NotoSans",
+      "normal",
+    );
+
+    doc.addFileToVFS("NotoSans-Bold.ttf", bold);
+    doc.addFont(
+      "NotoSans-Bold.ttf",
+      "NotoSans",
+      "bold",
+    );
+
+    const title =
+      filterType === "class"
+        ? `TỔNG HỢP HỌC PHÍ - LỚP ${selectedClass}`
+        : "TỔNG HỢP HỌC PHÍ - TẤT CẢ HỌC SINH";
+
+    doc.setFont("NotoSans", "bold");
+    doc.setFontSize(17);
+
+    doc.text(title, 148, 16, {
+      align: "center",
+    });
+
+    doc.setFontSize(11);
+    doc.setFont("NotoSans", "normal");
+
+    doc.text(
+      `Tháng: ${month.slice(5, 7)}/${month.slice(
+        0,
+        4,
+      )}`,
+      15,
+      27,
+    );
+
+    doc.text(
+      `Số học sinh: ${exportStudents.length}`,
+      230,
+      27,
+    );
+
+    // =====================================================
+    // DỮ LIỆU TỔNG HỢP
+    // =====================================================
+
+    const summaryRows = exportStudents.map(
+      (s, index) => {
+        const attended = getAtt(s);
+        const count = attended.length;
+        const total = getEarned(s);
+
+        return [
+          index + 1,
+          s.name || "",
+          s.className || "",
+          money(s.feePerLesson),
+          count,
+          money(total),
+        ];
+      },
+    );
+
+    // =====================================================
+    // TỔNG CỘNG
+    // =====================================================
+
+    const totalLessons = exportStudents.reduce(
+      (sum, s) =>
+        sum + getAtt(s).length,
+      0,
+    );
+
+    const totalEarnedAll = exportStudents.reduce(
+      (sum, s) =>
+        sum + getEarned(s),
+      0,
+    );
+
+    // =====================================================
+    // BẢNG
+    // =====================================================
+
+    autoTable(doc, {
+      startY: 34,
+
+      head: [[
+        "STT",
+        "Học sinh",
+        "Lớp",
+        "Phí/buổi",
+        "Số buổi",
+        "Tổng học phí",
+      ]],
+
+      body: summaryRows,
+      
+      theme: "grid",
+
+      styles: {
+        font: "NotoSans",
+        fontSize: 10,
+        valign: "middle",
+      },
+
+      headStyles: {
+        font: "NotoSans",
+        fontStyle: "bold",
+        halign: "center",
+      },
+
+      footStyles: {
+        font: "NotoSans",
+        fontStyle: "bold",
+      },
+
+      columnStyles: {
+        0: {
+          cellWidth: 15,
+          halign: "center",
+        },
+
+        1: {
+          cellWidth: 70,
+        },
+
+        2: {
+          cellWidth: 50,
+        },
+
+        3: {
+          cellWidth: 40,
+          halign: "right",
+        },
+
+        4: {
+          cellWidth: 30,
+          halign: "center",
+        },
+
+        5: {
+          cellWidth: 45,
+          halign: "right",
+        },
+      },
+
+      margin: {
+        left: 10,
+        right: 10,
+      },
+    });
+
+    // =====================================================
+    // THÔNG TIN CHUYỂN KHOẢN
+    // =====================================================
+
+    let y = doc.lastAutoTable.finalY + 12;
+
+    doc.setFont("NotoSans", "bold");
+    doc.setFontSize(11);
+
+    doc.text(
+      "THÔNG TIN CHUYỂN KHOẢN",
+      15,
+      y,
+    );
+
+    y += 7;
+
+    doc.setFont("NotoSans", "normal");
+
+    doc.text(
+      `Ngân hàng: ${settings?.bankName || ""}`,
+      15,
+      y,
+    );
+
+    y += 6;
+
+    doc.text(
+      `Số tài khoản: ${settings?.bankAccount || ""}`,
+      15,
+      y,
+    );
+
+    y += 6;
+
+    doc.text(
+      `Chủ tài khoản: ${settings?.bankOwner || ""}`,
+      15,
+      y,
+    );
+
+    y += 10;
+
+    doc.setFont("NotoSans", "bold");
+
+    doc.text("LƯU Ý", 15, y);
+
+    y += 6;
+
+    doc.setFont("NotoSans", "normal");
+
+    const notes = doc.splitTextToSize(
+      settings?.parentNote || "",
+      260,
+    );
+
+    doc.text(notes, 15, y);
+
+    // =====================================================
+    // TÊN FILE
+    // =====================================================
+
+    let filename = `hoc-phi-${month}`;
+
+    if (filterType === "class") {
+      filename +=
+        `-lop-${selectedClass.replaceAll(
+          " ",
+          "-",
+        )}`;
+    } else {
+      filename += "-tat-ca";
+    }
+
+    doc.save(`${filename}.pdf`);
+  } catch (e) {
+    console.error(e);
+
+    alert(
+      "Không thể tạo PDF. Hãy kiểm tra font NotoSans.",
+    );
+  } finally {
+    setPdfLoading(false);
+  }
+};
 
   return (
     <>
@@ -2112,19 +2433,24 @@ const rows = getAtt(s)
 
             <select
               value={filterType}
-              onChange={(e) => {
-                const value = e.target.value;
+onChange={(e) => {
+  const value = e.target.value;
 
-                setFilterType(value);
+  setFilterType(value);
 
-                if (value === "student") {
-                  setSelectedStudent(students[0]?.id || "");
-                }
+  if (value === "student") {
+    setSelectedStudent(students[0]?.id || "");
+  }
 
-                if (value === "class") {
-                  setSelectedClass(classNames[0] || "");
-                }
-              }}
+  if (value === "class") {
+    setSelectedClass(classNames[0] || "");
+  }
+
+  if (value === "all") {
+    setSelectedStudent("");
+    setSelectedClass("");
+  }
+}}
             >
               <option value="all">Tất cả học sinh</option>
 
