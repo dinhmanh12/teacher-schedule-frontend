@@ -351,36 +351,79 @@ function App() {
     }
   };
 
-const copyStudentLink = async (id) => {
+  const copyStudentLink = async (id) => {
+    try {
+      const x = await api("/share-links", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId: Number(id),
+        }),
+      });
+
+      const url = `${location.origin}/share/${x.token}`;
+
+      await navigator.clipboard?.writeText(url);
+
+      notify("Đã copy lịch học trong tuần");
+    } catch (e) {
+      alert(e.message || "Không thể tạo link chia sẻ");
+    }
+  };
+const updatePayment = async (v) => {
   try {
-    const x = await api("/share-links", {
-      method: "POST",
+    const x = await api("/payments/monthly", {
+      method: "PUT",
       body: JSON.stringify({
-        studentId: Number(id),
+        studentId: Number(v.studentId),
+        month: v.month,
+        amount: Number(v.amount),
+        note: v.note || "",
       }),
     });
 
-    const url = `${location.origin}/share/${x.token}`;
+    // Cập nhật state payments ngay lập tức
+    setPayments((prev) => {
+      const filtered = prev.filter(
+        (p) =>
+          !(
+            Number(p.studentId) === Number(v.studentId) &&
+            String(p.month).slice(0, 7) === String(v.month)
+          ),
+      );
 
-    await navigator.clipboard?.writeText(url);
+      if (x.payment) {
+        return [...filtered, x.payment];
+      }
 
-    notify("Đã copy lịch học trong tuần");
+      return filtered;
+    });
+
+    notify("Đã cập nhật số tiền đã thu");
+
+    return x;
   } catch (e) {
-    alert(e.message || "Không thể tạo link chia sẻ");
+    alert(e.message || "Không thể cập nhật số tiền đã thu");
+    throw e;
   }
 };
+  const stats = useMemo(() => {
+    const earned = attendance
+      .filter((x) => x.status === "attended")
+      .reduce((total, x) => {
+        const student = students.find(
+          (s) => Number(s.id) === Number(x.studentId),
+        );
 
-  const stats = useMemo(
-    () => ({
+        return total + Number(student?.feePerLesson || 0);
+      }, 0);
+
+    return {
       students: students.length,
       classes: classes.length,
       lessons: lessons.length,
-      earned: attendance
-        .filter((x) => x.status === "attended")
-        .reduce((a, x) => a + Number(x.fee || 0), 0),
-    }),
-    [students, classes, schedules, attendance],
-  );
+      earned,
+    };
+  }, [students, classes, lessons, attendance]);
 
   const nav = (p) => {
     setPage(p);
@@ -481,25 +524,25 @@ const copyStudentLink = async (id) => {
                 <Dashboard stats={stats} onNavigate={nav} />
               )}
 
-{page === "students" && (
-  <Students
-    students={students}
-    lessons={lessons}
-    onAdd={() =>
-      setModal({
-        type: "student",
-      })
-    }
-    onEdit={(s) =>
-      setModal({
-        type: "student",
-        data: s,
-      })
-    }
-    onDelete={deleteStudent}
-    onShare={copyStudentLink}
-  />
-)}
+              {page === "students" && (
+                <Students
+                  students={students}
+                  lessons={lessons}
+                  onAdd={() =>
+                    setModal({
+                      type: "student",
+                    })
+                  }
+                  onEdit={(s) =>
+                    setModal({
+                      type: "student",
+                      data: s,
+                    })
+                  }
+                  onDelete={deleteStudent}
+                  onShare={copyStudentLink}
+                />
+              )}
 
               {page === "classes" && (
                 <Classes
@@ -564,6 +607,7 @@ const copyStudentLink = async (id) => {
 
                     await load();
                   }}
+                  onUpdatePayment={updatePayment}
                   settings={settings}
                 />
               )}
@@ -718,15 +762,11 @@ function PublicSchedule({ data }) {
         return a.lessonDate.localeCompare(b.lessonDate);
       }
 
-      return String(a.time || "").localeCompare(
-        String(b.time || ""),
-      );
+      return String(a.time || "").localeCompare(String(b.time || ""));
     });
 
   const lessonsByDate = (dateString) => {
-    return weekLessons.filter(
-      (lesson) => lesson.lessonDate === dateString,
-    );
+    return weekLessons.filter((lesson) => lesson.lessonDate === dateString);
   };
 
   const goPreviousWeek = () => {
@@ -750,18 +790,13 @@ function PublicSchedule({ data }) {
   };
 
   const weekTitle =
-    `${formatDisplayDate(weekStart)} - ` +
-    `${formatDisplayDate(weekEnd)}`;
+    `${formatDisplayDate(weekStart)} - ` + `${formatDisplayDate(weekEnd)}`;
 
   return (
     <>
       <PageTitle
-        title={`Thời gian biểu của ${
-          data?.student?.name || "học sinh"
-        }`}
-        desc={`Lớp ${
-          data?.student?.className || ""
-        } · Lịch học trong tuần`}
+        title={`Thời gian biểu của ${data?.student?.name || "học sinh"}`}
+        desc={`Lớp ${data?.student?.className || ""} · Lịch học trong tuần`}
       />
 
       <div className="card public-card">
@@ -770,9 +805,7 @@ function PublicSchedule({ data }) {
 
           <div>
             <h2>{data?.student?.name}</h2>
-            <p>
-              {data?.student?.className || "Chưa có lớp"}
-            </p>
+            <p>{data?.student?.className || "Chưa có lớp"}</p>
           </div>
         </div>
 
@@ -786,10 +819,7 @@ function PublicSchedule({ data }) {
             flexWrap: "wrap",
           }}
         >
-          <button
-            className="secondary"
-            onClick={goPreviousWeek}
-          >
+          <button className="secondary" onClick={goPreviousWeek}>
             ← Tuần trước
           </button>
 
@@ -802,27 +832,19 @@ function PublicSchedule({ data }) {
           >
             <b>{weekTitle}</b>
 
-            <button
-              className="secondary"
-              onClick={goCurrentWeek}
-            >
+            <button className="secondary" onClick={goCurrentWeek}>
               Tuần này
             </button>
           </div>
 
-          <button
-            className="secondary"
-            onClick={goNextWeek}
-          >
+          <button className="secondary" onClick={goNextWeek}>
             Tuần sau →
           </button>
         </div>
 
         <div className="mini-schedule">
           {weekDays.map((day) => {
-            const dayLessons = lessonsByDate(
-              day.dateString,
-            );
+            const dayLessons = lessonsByDate(day.dateString);
 
             return (
               <div key={day.dateString}>
@@ -841,18 +863,13 @@ function PublicSchedule({ data }) {
 
                 {dayLessons.length > 0 ? (
                   dayLessons.map((lesson) => (
-                    <div
-                      className="public-lesson"
-                      key={lesson.id}
-                    >
+                    <div className="public-lesson" key={lesson.id}>
                       <b>{lesson.time}</b>
 
                       <span>
                         {lesson.subject}
 
-                        {lesson.room
-                          ? ` · ${lesson.room}`
-                          : ""}
+                        {lesson.room ? ` · ${lesson.room}` : ""}
 
                         {lesson.status === "attended" && (
                           <small
@@ -953,14 +970,7 @@ function Stat({ icon, label, value }) {
   );
 }
 
-function Students({
-  students,
-  lessons,
-  onAdd,
-  onEdit,
-  onDelete,
-  onShare,
-}) {
+function Students({ students, lessons, onAdd, onEdit, onDelete, onShare }) {
   const [q, setQ] = useState("");
 
   const list = students.filter((s) =>
@@ -973,8 +983,7 @@ function Students({
   const getAttendedLessons = (studentId) => {
     return (lessons || []).filter(
       (l) =>
-        Number(l.studentId) === Number(studentId) &&
-        l.status === "attended",
+        Number(l.studentId) === Number(studentId) && l.status === "attended",
     ).length;
   };
 
@@ -1030,9 +1039,7 @@ function Students({
                   <td>{s.phone || "—"}</td>
 
                   <td>
-                    <span className="tag">
-                      {s.className || "Chưa có lớp"}
-                    </span>
+                    <span className="tag">{s.className || "Chưa có lớp"}</span>
                   </td>
 
                   <td>{money(s.feePerLesson)}</td>
@@ -1193,12 +1200,10 @@ function Schedule({
     return lessons.filter((x) => {
       const lessonDate = String(x.lessonDate || "");
 
-      const correctDate =
-        lessonDate >= start && lessonDate <= end;
+      const correctDate = lessonDate >= start && lessonDate <= end;
 
       const correctStudent =
-        sid === "Tất cả" ||
-        Number(x.studentId) === Number(sid);
+        sid === "Tất cả" || Number(x.studentId) === Number(sid);
 
       return correctDate && correctStudent;
     });
@@ -1223,9 +1228,7 @@ function Schedule({
   const getStudentName = (studentId, fallback) => {
     return (
       fallback ||
-      students.find(
-        (s) => Number(s.id) === Number(studentId),
-      )?.name ||
+      students.find((s) => Number(s.id) === Number(studentId))?.name ||
       "Học sinh"
     );
   };
@@ -1256,13 +1259,8 @@ function Schedule({
         <label className="field">
           <span>Học sinh</span>
 
-          <select
-            value={sid}
-            onChange={(e) => setSid(e.target.value)}
-          >
-            <option value="Tất cả">
-              Tất cả học sinh
-            </option>
+          <select value={sid} onChange={(e) => setSid(e.target.value)}>
+            <option value="Tất cả">Tất cả học sinh</option>
 
             {students.map((s) => (
               <option value={s.id} key={s.id}>
@@ -1280,24 +1278,15 @@ function Schedule({
             flexWrap: "wrap",
           }}
         >
-          <button
-            className="outline"
-            onClick={previousWeek}
-          >
+          <button className="outline" onClick={previousWeek}>
             ← Tuần trước
           </button>
 
-          <button
-            className="outline"
-            onClick={currentWeek}
-          >
+          <button className="outline" onClick={currentWeek}>
             Tuần này
           </button>
 
-          <button
-            className="outline"
-            onClick={nextWeek}
-          >
+          <button className="outline" onClick={nextWeek}>
             Tuần sau →
           </button>
         </div>
@@ -1307,13 +1296,10 @@ function Schedule({
       <div className="card month-schedule">
         <div className="month-schedule-head">
           <b>
-            Tuần {weekDates[0]?.displayDate} -{" "}
-            {weekEnd?.displayDate}
+            Tuần {weekDates[0]?.displayDate} - {weekEnd?.displayDate}
           </b>
 
-          <span>
-            {weekLessons.length} buổi học
-          </span>
+          <span>{weekLessons.length} buổi học</span>
         </div>
 
         {/* Danh sách buổi học thực tế trong tuần */}
@@ -1322,63 +1308,31 @@ function Schedule({
             .slice()
             .sort(
               (a, b) =>
-                String(a.lessonDate).localeCompare(
-                  String(b.lessonDate),
-                ) ||
-                String(a.time).localeCompare(
-                  String(b.time),
-                ),
+                String(a.lessonDate).localeCompare(String(b.lessonDate)) ||
+                String(a.time).localeCompare(String(b.time)),
             )
             .map((l) => {
-              const d = new Date(
-                `${l.lessonDate}T12:00:00`,
-              );
+              const d = new Date(`${l.lessonDate}T12:00:00`);
 
-              const dayName =
-                days[
-                  d.getDay() === 0
-                    ? 6
-                    : d.getDay() - 1
-                ];
+              const dayName = days[d.getDay() === 0 ? 6 : d.getDay() - 1];
 
               return (
-                <div
-                  className="month-lesson"
-                  key={l.id}
-                >
+                <div className="month-lesson" key={l.id}>
                   <div className="month-date">
-                    <b>
-                      {String(l.lessonDate).slice(8, 10)}
-                    </b>
+                    <b>{String(l.lessonDate).slice(8, 10)}</b>
 
-                    <span>
-                      /
-                      {String(l.lessonDate).slice(
-                        5,
-                        7,
-                      )}
-                    </span>
+                    <span>/{String(l.lessonDate).slice(5, 7)}</span>
                   </div>
 
                   <div className="month-info">
-                    <b>
-                      {getStudentName(
-                        l.studentId,
-                        l.studentName,
-                      )}
-                    </b>
+                    <b>{getStudentName(l.studentId, l.studentName)}</b>
 
                     <span>
-                      {dayName} · {l.time} ·{" "}
-                      {l.subject} · {l.className}
+                      {dayName} · {l.time} · {l.subject} · {l.className}
                     </span>
                   </div>
 
-                  <span
-                    className={`status-tag ${
-                      l.status || ""
-                    }`}
-                  >
+                  <span className={`status-tag ${l.status || ""}`}>
                     {l.status === "attended"
                       ? "Đã học"
                       : l.status === "absent"
@@ -1389,9 +1343,7 @@ function Schedule({
                   <button
                     className="icon-btn danger-icon"
                     title="Xóa buổi"
-                    onClick={() =>
-                      onDeleteLesson(l.id)
-                    }
+                    onClick={() => onDeleteLesson(l.id)}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1400,9 +1352,7 @@ function Schedule({
             })}
 
           {weekLessons.length === 0 && (
-            <div className="empty-fee">
-              Chưa có buổi học trong tuần này.
-            </div>
+            <div className="empty-fee">Chưa có buổi học trong tuần này.</div>
           )}
         </div>
       </div>
@@ -1412,15 +1362,10 @@ function Schedule({
          ================================= */}
       <div className="card schedule-wrap">
         <div className="schedule-grid">
-          <div className="corner">
-            Giờ
-          </div>
+          <div className="corner">Giờ</div>
 
           {weekDates.map((x) => (
-            <div
-              className="day-head"
-              key={x.dateString}
-            >
+            <div className="day-head" key={x.dateString}>
               <div>{x.day}</div>
 
               <small
@@ -1458,21 +1403,17 @@ function Schedule({
                 </div>
 
                 {weekDates.map((dayInfo) => {
-                  const actualLessons =
-                    getLessonsForCell(
-                      dayInfo.dateString,
-                      time,
-                    );
+                  const actualLessons = getLessonsForCell(
+                    dayInfo.dateString,
+                    time,
+                  );
 
-                  const fixedSchedules =
-                    schedules.filter(
-                      (q) =>
-                        q.day === dayInfo.day &&
-                        q.time === time &&
-                        (sid === "Tất cả" ||
-                          Number(q.studentId) ===
-                            Number(sid)),
-                    );
+                  const fixedSchedules = schedules.filter(
+                    (q) =>
+                      q.day === dayInfo.day &&
+                      q.time === time &&
+                      (sid === "Tất cả" || Number(q.studentId) === Number(sid)),
+                  );
 
                   return (
                     <div
@@ -1481,36 +1422,19 @@ function Schedule({
                     >
                       {/* LỊCH CỐ ĐỊNH */}
                       {fixedSchedules.map((x) => (
-                        <div
-                          className="lesson"
-                          key={`schedule-${x.id}`}
-                        >
-                          <b>
-                            {getStudentName(
-                              x.studentId,
-                              x.studentName,
-                            )}
-                          </b>
+                        <div className="lesson" key={`schedule-${x.id}`}>
+                          <b>{getStudentName(x.studentId, x.studentName)}</b>
 
-                          <span>
-                            {x.subject}
-                          </span>
+                          <span>{x.subject}</span>
 
-                          <button
-                            title="Sửa"
-                            onClick={() =>
-                              onEdit(x)
-                            }
-                          >
+                          <button title="Sửa" onClick={() => onEdit(x)}>
                             <Pencil size={12} />
                           </button>
 
                           <button
                             className="lesson-delete"
                             title="Xóa"
-                            onClick={() =>
-                              onDelete(x.id)
-                            }
+                            onClick={() => onDelete(x.id)}
                           >
                             <X size={13} />
                           </button>
@@ -1529,16 +1453,9 @@ function Schedule({
                           }`}
                           key={`lesson-${x.id}`}
                         >
-                          <b>
-                            {getStudentName(
-                              x.studentId,
-                              x.studentName,
-                            )}
-                          </b>
+                          <b>{getStudentName(x.studentId, x.studentName)}</b>
 
-                          <span>
-                            {x.subject}
-                          </span>
+                          <span>{x.subject}</span>
 
                           <small>
                             {x.status === "attended"
@@ -1551,9 +1468,7 @@ function Schedule({
                           <button
                             className="lesson-delete"
                             title="Xóa buổi"
-                            onClick={() =>
-                              onDeleteLesson(x.id)
-                            }
+                            onClick={() => onDeleteLesson(x.id)}
                           >
                             <X size={13} />
                           </button>
@@ -1620,11 +1535,11 @@ function Attendance({
 
   const absent = rows.filter((x) => x.status === "absent").length;
 
+  const student = students.find((s) => Number(s.id) === Number(sid));
+
   const earned = rows
     .filter((x) => x.status === "attended")
-    .reduce((s, x) => s + Number(x.fee || 0), 0);
-
-  const student = students.find((s) => Number(s.id) === Number(sid));
+    .reduce((total) => total + Number(student?.feePerLesson || 0), 0);
 
   return (
     <>
@@ -1802,7 +1717,14 @@ function Attendance({
   );
 }
 
-function Fees({ students, attendance, payments, onPayment, settings }) {
+function Fees({
+  students,
+  attendance,
+  payments,
+  onPayment,
+  onUpdatePayment,
+  settings,
+}) {
   const [month, setMonth] = useState(currentMonth());
   const [filterType, setFilterType] = useState("all");
   const [selectedClass, setSelectedClass] = useState("");
@@ -1810,31 +1732,33 @@ function Fees({ students, attendance, payments, onPayment, settings }) {
   const [amounts, setAmounts] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // Modal sửa số tiền đã thu
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editingAmount, setEditingAmount] = useState("");
+
   const classNames = [
     ...new Set(
       students.map((s) => s.className).filter((x) => x && String(x).trim()),
     ),
   ].sort();
 
-const filtered = useMemo(() => {
-  switch (filterType) {
-    case "student":
-      return students.filter(
-        (s) => Number(s.id) === Number(selectedStudent),
-      );
+  const filtered = useMemo(() => {
+    switch (filterType) {
+      case "student":
+        return students.filter((s) => Number(s.id) === Number(selectedStudent));
 
-    case "class":
-      return students.filter(
-        (s) =>
-          String(s.className || "").trim() ===
-          String(selectedClass || "").trim(),
-      );
+      case "class":
+        return students.filter(
+          (s) =>
+            String(s.className || "").trim() ===
+            String(selectedClass || "").trim(),
+        );
 
-    case "all":
-    default:
-      return [...students];
-  }
-}, [students, filterType, selectedClass, selectedStudent]);
+      case "all":
+      default:
+        return [...students];
+    }
+  }, [students, filterType, selectedClass, selectedStudent]);
 
   const getAtt = (s) =>
     attendance.filter(
@@ -1845,21 +1769,40 @@ const filtered = useMemo(() => {
     );
 
   const getEarned = (s) =>
-    getAtt(s).reduce((t, a) => t + Number(a.fee || 0), 0);
+    getAtt(s).reduce((t) => t + Number(s.feePerLesson || 0), 0);
 
+  // Tổng tiền đã thu của học sinh trong tháng
   const getPaid = (s) =>
     payments
-      .filter((p) => Number(p.studentId) === Number(s.id) && p.month === month)
+      .filter(
+        (p) =>
+          Number(p.studentId) === Number(s.id) &&
+          String(p.month) === String(month),
+      )
       .reduce((t, p) => t + Number(p.amount || 0), 0);
+
+  // Lấy payment record để sửa
+  const getPaymentRecords = (s) =>
+    payments.filter(
+      (p) =>
+        Number(p.studentId) === Number(s.id) &&
+        String(p.month) === String(month),
+    );
 
   const totalEarned = filtered.reduce((t, s) => t + getEarned(s), 0);
 
   const totalPaid = filtered.reduce((t, s) => t + getPaid(s), 0);
 
+  // =========================================================
+  // GHI NHẬN THANH TOÁN MỚI
+  // =========================================================
   const pay = async (s) => {
     const amount = Number(amounts[s.id] || 0);
 
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      alert("Vui lòng nhập số tiền lớn hơn 0.");
+      return;
+    }
 
     await onPayment({
       studentId: s.id,
@@ -1872,6 +1815,59 @@ const filtered = useMemo(() => {
       [s.id]: "",
     }));
   };
+
+  // =========================================================
+  // MỞ FORM SỬA "ĐÃ THU"
+  // =========================================================
+  const openEditPayment = (s) => {
+    const records = getPaymentRecords(s);
+    const paid = getPaid(s);
+
+    if (records.length === 0) {
+      alert("Học sinh này chưa có khoản thanh toán nào trong tháng.");
+      return;
+    }
+
+    setEditingPayment({
+      student: s,
+      records,
+      totalPaid: paid,
+    });
+
+    setEditingAmount(String(paid));
+  };
+
+  // =========================================================
+  // LƯU "ĐÃ THU"
+  //
+  // Hiện tại payment có thể có nhiều record trong cùng tháng.
+  // Ta sửa record đầu tiên thành tổng tiền mới.
+  //
+  // Nếu hệ thống chỉ tạo 1 payment/tháng thì hoạt động trực tiếp.
+  // =========================================================
+const saveEditedPayment = async () => {
+  if (!editingPayment) return;
+
+  const amount = Number(editingAmount);
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    alert("Số tiền không hợp lệ.");
+    return;
+  }
+
+  try {
+    await onUpdatePayment({
+      studentId: editingPayment.student.id,
+      month,
+      amount,
+    });
+
+    setEditingPayment(null);
+    setEditingAmount("");
+  } catch (e) {
+    console.error(e);
+  }
+};
 
   const loadFont = async (url) => {
     const r = await fetch(url);
@@ -1893,253 +1889,399 @@ const filtered = useMemo(() => {
     return btoa(bin);
   };
 
-const exportPDF = async () => {
-  const exportStudents =
-    filterType === "student"
-      ? students.filter(
-          (s) => Number(s.id) === Number(selectedStudent),
-        )
-      : filterType === "class"
-        ? students.filter(
-            (s) =>
-              String(s.className || "").trim() ===
-              String(selectedClass || "").trim(),
+  const exportPDF = async () => {
+    const exportStudents =
+      filterType === "student"
+        ? students.filter((s) => Number(s.id) === Number(selectedStudent))
+        : filterType === "class"
+          ? students.filter(
+              (s) =>
+                String(s.className || "").trim() ===
+                String(selectedClass || "").trim(),
+            )
+          : [...students];
+
+    if (!exportStudents.length) {
+      alert("Không có học sinh để xuất PDF.");
+      return;
+    }
+
+    try {
+      setPdfLoading(true);
+
+      const [jm, am] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+
+      const autoTable = am.default || am;
+
+      const [regular, bold] = await Promise.all([
+        loadFont("/fonts/NotoSans-Regular.ttf"),
+        loadFont("/fonts/NotoSans-Bold.ttf"),
+      ]);
+
+      // =====================================================
+      // 1. MỘT HỌC SINH
+      // =====================================================
+      if (filterType === "student") {
+        const doc = new jm.jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+        doc.addFileToVFS("NotoSans-Regular.ttf", regular);
+        doc.addFont("NotoSans-Regular.ttf", "NotoSans", "normal");
+
+        doc.addFileToVFS("NotoSans-Bold.ttf", bold);
+        doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
+
+        const s = exportStudents[0];
+
+        const rows = getAtt(s)
+          .sort((a, b) =>
+            String(a.lessonDate).localeCompare(String(b.lessonDate)),
           )
-        : [...students];
+          .map((a, i) => {
+            const date = new Date(`${a.lessonDate}T12:00:00`);
 
-  if (!exportStudents.length) {
-    alert("Không có học sinh để xuất PDF.");
-    return;
-  }
+            const dayNames = [
+              "Chủ nhật",
+              "Thứ 2",
+              "Thứ 3",
+              "Thứ 4",
+              "Thứ 5",
+              "Thứ 6",
+              "Thứ 7",
+            ];
 
-  try {
-    setPdfLoading(true);
+            return [
+              i + 1,
+              String(a.lessonDate).split("-").reverse().join("/"),
+              dayNames[date.getDay()],
+              a.time || "",
+              a.subject || "",
+              money(s.feePerLesson),
+            ];
+          });
 
-    const [jm, am] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
+        const total = getEarned(s);
+        const paid = getPaid(s);
+        const remaining = total - paid;
 
-    const autoTable = am.default || am;
+        doc.setFont("NotoSans", "bold");
+        doc.setFontSize(18);
 
-    const [regular, bold] = await Promise.all([
-      loadFont("/fonts/NotoSans-Regular.ttf"),
-      loadFont("/fonts/NotoSans-Bold.ttf"),
-    ]);
+        doc.text("PHIẾU HỌC PHÍ", 105, 18, {
+          align: "center",
+        });
 
-    // =====================================================
-    // 1. TRƯỜNG HỢP MỘT HỌC SINH
-    //    -> Xuất chi tiết từng buổi
-    // =====================================================
-    if (filterType === "student") {
+        doc.setFontSize(12);
+
+        doc.text(`Học sinh: ${s.name}`, 15, 31);
+
+        doc.setFont("NotoSans", "normal");
+
+        doc.text(`Lớp: ${s.className || ""}`, 15, 38);
+
+        doc.text(`Tháng: ${month.slice(5, 7)}/${month.slice(0, 4)}`, 15, 45);
+
+        doc.text(`Phí/buổi: ${money(s.feePerLesson)}`, 110, 38);
+
+        doc.text(`Số buổi đã học: ${rows.length}`, 110, 45);
+
+        autoTable(doc, {
+          startY: 52,
+
+          head: [["STT", "Ngày", "Thứ", "Giờ", "Môn", "Số tiền"]],
+
+          body: rows,
+
+          theme: "grid",
+
+          styles: {
+            font: "NotoSans",
+            fontSize: 9,
+          },
+
+          headStyles: {
+            font: "NotoSans",
+            fontStyle: "bold",
+          },
+
+          columnStyles: {
+            0: {
+              cellWidth: 12,
+              halign: "center",
+            },
+
+            1: {
+              cellWidth: 25,
+              halign: "center",
+            },
+
+            2: {
+              cellWidth: 25,
+              halign: "center",
+            },
+
+            3: {
+              cellWidth: 30,
+              halign: "center",
+            },
+
+            4: {
+              cellWidth: 45,
+            },
+
+            5: {
+              halign: "right",
+            },
+          },
+        });
+
+        let y = doc.lastAutoTable.finalY + 10;
+
+        doc.setFont("NotoSans", "bold");
+
+        doc.text(`TỔNG ĐÃ HỌC: ${rows.length} BUỔI`, 15, y);
+
+        doc.text(`TỔNG HỌC PHÍ: ${money(total)}`, 110, y);
+
+        y += 7;
+
+        doc.text(`ĐÃ THU: ${money(paid)}`, 15, y);
+
+        doc.text(`CÒN THIẾU: ${money(remaining)}`, 110, y);
+
+        y += 14;
+
+        doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
+
+        y += 7;
+
+        doc.setFont("NotoSans", "normal");
+
+        doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, y);
+
+        y += 6;
+
+        doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, y);
+
+        y += 6;
+
+        doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
+
+        y += 10;
+
+        doc.setFont("NotoSans", "bold");
+
+        doc.text("LƯU Ý", 15, y);
+
+        y += 6;
+
+        doc.setFont("NotoSans", "normal");
+
+        const notes = doc.splitTextToSize(settings?.parentNote || "", 175);
+
+        doc.text(notes, 15, y);
+
+        const filename =
+          `hoc-phi-${month}-` + `${s.name.replaceAll(" ", "-")}.pdf`;
+
+        doc.save(filename);
+
+        return;
+      }
+
+      // =====================================================
+      // 2. TẤT CẢ / TOÀN BỘ LỚP
+      // =====================================================
+
       const doc = new jm.jsPDF({
-        orientation: "portrait",
+        orientation: "landscape",
         unit: "mm",
         format: "a4",
       });
 
       doc.addFileToVFS("NotoSans-Regular.ttf", regular);
-      doc.addFont(
-        "NotoSans-Regular.ttf",
-        "NotoSans",
-        "normal",
-      );
+      doc.addFont("NotoSans-Regular.ttf", "NotoSans", "normal");
 
       doc.addFileToVFS("NotoSans-Bold.ttf", bold);
-      doc.addFont(
-        "NotoSans-Bold.ttf",
-        "NotoSans",
-        "bold",
-      );
+      doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
 
-      const s = exportStudents[0];
-
-      const rows = getAtt(s)
-        .sort((a, b) =>
-          String(a.lessonDate).localeCompare(
-            String(b.lessonDate),
-          ),
-        )
-        .map((a, i) => {
-          const date = new Date(
-            `${a.lessonDate}T12:00:00`,
-          );
-
-          const dayNames = [
-            "Chủ nhật",
-            "Thứ 2",
-            "Thứ 3",
-            "Thứ 4",
-            "Thứ 5",
-            "Thứ 6",
-            "Thứ 7",
-          ];
-
-          return [
-            i + 1,
-            String(a.lessonDate)
-              .split("-")
-              .reverse()
-              .join("/"),
-            dayNames[date.getDay()],
-            a.time || "",
-            a.subject || "",
-            money(a.fee),
-          ];
-        });
-
-      const total = getEarned(s);
+      const title =
+        filterType === "class"
+          ? `TỔNG HỢP HỌC PHÍ - LỚP ${selectedClass}`
+          : "TỔNG HỢP HỌC PHÍ - TẤT CẢ HỌC SINH";
 
       doc.setFont("NotoSans", "bold");
-      doc.setFontSize(18);
+      doc.setFontSize(17);
 
-      doc.text("PHIẾU HỌC PHÍ", 105, 18, {
+      doc.text(title, 148, 16, {
         align: "center",
       });
 
-      doc.setFontSize(12);
-
-      doc.text(
-        `Học sinh: ${s.name}`,
-        15,
-        31,
-      );
-
+      doc.setFontSize(11);
       doc.setFont("NotoSans", "normal");
 
-      doc.text(
-        `Lớp: ${s.className || ""}`,
-        15,
-        38,
+      doc.text(`Tháng: ${month.slice(5, 7)}/${month.slice(0, 4)}`, 15, 27);
+
+      doc.text(`Số học sinh: ${exportStudents.length}`, 230, 27);
+
+      const summaryRows = exportStudents.map((s, index) => {
+        const attended = getAtt(s);
+        const count = attended.length;
+        const total = getEarned(s);
+        const paid = getPaid(s);
+        const remaining = total - paid;
+
+        return [
+          index + 1,
+          s.name || "",
+          s.className || "",
+          money(s.feePerLesson),
+          count,
+          money(total),
+          money(paid),
+          money(remaining),
+        ];
+      });
+
+      const totalLessons = exportStudents.reduce(
+        (sum, s) => sum + getAtt(s).length,
+        0,
       );
 
-      doc.text(
-        `Tháng: ${month.slice(5, 7)}/${month.slice(
-          0,
-          4,
-        )}`,
-        15,
-        45,
+      const totalEarnedAll = exportStudents.reduce(
+        (sum, s) => sum + getEarned(s),
+        0,
       );
 
-      doc.text(
-        `Phí/buổi: ${money(s.feePerLesson)}`,
-        110,
-        38,
+      const totalPaidAll = exportStudents.reduce(
+        (sum, s) => sum + getPaid(s),
+        0,
       );
 
-      doc.text(
-        `Số buổi đã học: ${rows.length}`,
-        110,
-        45,
-      );
+      const totalRemainingAll = totalEarnedAll - totalPaidAll;
 
       autoTable(doc, {
-        startY: 52,
+        startY: 34,
 
-        head: [[
-          "STT",
-          "Ngày",
-          "Thứ",
-          "Giờ",
-          "Môn",
-          "Số tiền",
-        ]],
+        head: [
+          [
+            "STT",
+            "Học sinh",
+            "Lớp",
+            "Phí/buổi",
+            "Số buổi",
+            "Tổng học phí",
+            "Đã thu",
+            "Còn thiếu",
+          ],
+        ],
 
-        body: rows,
+        body: summaryRows,
+
+        foot: [
+          [
+            "",
+            "TỔNG CỘNG",
+            "",
+            "",
+            totalLessons,
+            money(totalEarnedAll),
+            money(totalPaidAll),
+            money(totalRemainingAll),
+          ],
+        ],
 
         theme: "grid",
 
         styles: {
           font: "NotoSans",
           fontSize: 9,
+          valign: "middle",
         },
 
         headStyles: {
+          font: "NotoSans",
+          fontStyle: "bold",
+          halign: "center",
+        },
+
+        footStyles: {
           font: "NotoSans",
           fontStyle: "bold",
         },
 
         columnStyles: {
           0: {
-            cellWidth: 12,
+            cellWidth: 13,
             halign: "center",
           },
 
           1: {
-            cellWidth: 25,
-            halign: "center",
+            cellWidth: 55,
           },
 
           2: {
+            cellWidth: 40,
+          },
+
+          3: {
+            cellWidth: 35,
+            halign: "right",
+          },
+
+          4: {
             cellWidth: 25,
             halign: "center",
           },
 
-          3: {
-            cellWidth: 30,
-            halign: "center",
-          },
-
-          4: {
-            cellWidth: 45,
-          },
-
           5: {
+            cellWidth: 40,
+            halign: "right",
+          },
+
+          6: {
+            cellWidth: 40,
+            halign: "right",
+          },
+
+          7: {
+            cellWidth: 40,
             halign: "right",
           },
         },
+
+        margin: {
+          left: 10,
+          right: 10,
+        },
       });
 
-      let y = doc.lastAutoTable.finalY + 10;
+      let y = doc.lastAutoTable.finalY + 12;
 
       doc.setFont("NotoSans", "bold");
+      doc.setFontSize(11);
 
-      doc.text(
-        `TỔNG ĐÃ HỌC: ${rows.length} BUỔI`,
-        15,
-        y,
-      );
-
-      doc.text(
-        `TỔNG HỌC PHÍ: ${money(total)}`,
-        110,
-        y,
-      );
-
-      y += 14;
-
-      doc.text(
-        "THÔNG TIN CHUYỂN KHOẢN",
-        15,
-        y,
-      );
+      doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
 
       y += 7;
 
       doc.setFont("NotoSans", "normal");
 
-      doc.text(
-        `Ngân hàng: ${settings?.bankName || ""}`,
-        15,
-        y,
-      );
+      doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, y);
 
       y += 6;
 
-      doc.text(
-        `Số tài khoản: ${settings?.bankAccount || ""}`,
-        15,
-        y,
-      );
+      doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, y);
 
       y += 6;
 
-      doc.text(
-        `Chủ tài khoản: ${settings?.bankOwner || ""}`,
-        15,
-        y,
-      );
+      doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
 
       y += 10;
 
@@ -2151,272 +2293,27 @@ const exportPDF = async () => {
 
       doc.setFont("NotoSans", "normal");
 
-      const notes = doc.splitTextToSize(
-        settings?.parentNote || "",
-        175,
-      );
+      const notes = doc.splitTextToSize(settings?.parentNote || "", 260);
 
       doc.text(notes, 15, y);
 
-      const filename =
-        `hoc-phi-${month}-` +
-        `${s.name.replaceAll(" ", "-")}.pdf`;
+      let filename = `hoc-phi-${month}`;
 
-      doc.save(filename);
+      if (filterType === "class") {
+        filename += `-lop-${selectedClass.replaceAll(" ", "-")}`;
+      } else {
+        filename += "-tat-ca";
+      }
 
-      return;
+      doc.save(`${filename}.pdf`);
+    } catch (e) {
+      console.error(e);
+
+      alert("Không thể tạo PDF. Hãy kiểm tra font NotoSans.");
+    } finally {
+      setPdfLoading(false);
     }
-
-    // =====================================================
-    // 2. TẤT CẢ / TOÀN BỘ LỚP
-    //    -> CHỈ 1 BẢNG TỔNG HỢP
-    // =====================================================
-
-    const doc = new jm.jsPDF({
-      orientation: "landscape",
-      unit: "mm",
-      format: "a4",
-    });
-
-    doc.addFileToVFS("NotoSans-Regular.ttf", regular);
-    doc.addFont(
-      "NotoSans-Regular.ttf",
-      "NotoSans",
-      "normal",
-    );
-
-    doc.addFileToVFS("NotoSans-Bold.ttf", bold);
-    doc.addFont(
-      "NotoSans-Bold.ttf",
-      "NotoSans",
-      "bold",
-    );
-
-    const title =
-      filterType === "class"
-        ? `TỔNG HỢP HỌC PHÍ - LỚP ${selectedClass}`
-        : "TỔNG HỢP HỌC PHÍ - TẤT CẢ HỌC SINH";
-
-    doc.setFont("NotoSans", "bold");
-    doc.setFontSize(17);
-
-    doc.text(title, 148, 16, {
-      align: "center",
-    });
-
-    doc.setFontSize(11);
-    doc.setFont("NotoSans", "normal");
-
-    doc.text(
-      `Tháng: ${month.slice(5, 7)}/${month.slice(
-        0,
-        4,
-      )}`,
-      15,
-      27,
-    );
-
-    doc.text(
-      `Số học sinh: ${exportStudents.length}`,
-      230,
-      27,
-    );
-
-    // =====================================================
-    // DỮ LIỆU TỔNG HỢP
-    // =====================================================
-
-    const summaryRows = exportStudents.map(
-      (s, index) => {
-        const attended = getAtt(s);
-        const count = attended.length;
-        const total = getEarned(s);
-
-        return [
-          index + 1,
-          s.name || "",
-          s.className || "",
-          money(s.feePerLesson),
-          count,
-          money(total),
-        ];
-      },
-    );
-
-    // =====================================================
-    // TỔNG CỘNG
-    // =====================================================
-
-    const totalLessons = exportStudents.reduce(
-      (sum, s) =>
-        sum + getAtt(s).length,
-      0,
-    );
-
-    const totalEarnedAll = exportStudents.reduce(
-      (sum, s) =>
-        sum + getEarned(s),
-      0,
-    );
-
-    // =====================================================
-    // BẢNG
-    // =====================================================
-
-    autoTable(doc, {
-      startY: 34,
-
-      head: [[
-        "STT",
-        "Học sinh",
-        "Lớp",
-        "Phí/buổi",
-        "Số buổi",
-        "Tổng học phí",
-      ]],
-
-      body: summaryRows,
-      
-      theme: "grid",
-
-      styles: {
-        font: "NotoSans",
-        fontSize: 10,
-        valign: "middle",
-      },
-
-      headStyles: {
-        font: "NotoSans",
-        fontStyle: "bold",
-        halign: "center",
-      },
-
-      footStyles: {
-        font: "NotoSans",
-        fontStyle: "bold",
-      },
-
-      columnStyles: {
-        0: {
-          cellWidth: 15,
-          halign: "center",
-        },
-
-        1: {
-          cellWidth: 70,
-        },
-
-        2: {
-          cellWidth: 50,
-        },
-
-        3: {
-          cellWidth: 40,
-          halign: "right",
-        },
-
-        4: {
-          cellWidth: 30,
-          halign: "center",
-        },
-
-        5: {
-          cellWidth: 45,
-          halign: "right",
-        },
-      },
-
-      margin: {
-        left: 10,
-        right: 10,
-      },
-    });
-
-    // =====================================================
-    // THÔNG TIN CHUYỂN KHOẢN
-    // =====================================================
-
-    let y = doc.lastAutoTable.finalY + 12;
-
-    doc.setFont("NotoSans", "bold");
-    doc.setFontSize(11);
-
-    doc.text(
-      "THÔNG TIN CHUYỂN KHOẢN",
-      15,
-      y,
-    );
-
-    y += 7;
-
-    doc.setFont("NotoSans", "normal");
-
-    doc.text(
-      `Ngân hàng: ${settings?.bankName || ""}`,
-      15,
-      y,
-    );
-
-    y += 6;
-
-    doc.text(
-      `Số tài khoản: ${settings?.bankAccount || ""}`,
-      15,
-      y,
-    );
-
-    y += 6;
-
-    doc.text(
-      `Chủ tài khoản: ${settings?.bankOwner || ""}`,
-      15,
-      y,
-    );
-
-    y += 10;
-
-    doc.setFont("NotoSans", "bold");
-
-    doc.text("LƯU Ý", 15, y);
-
-    y += 6;
-
-    doc.setFont("NotoSans", "normal");
-
-    const notes = doc.splitTextToSize(
-      settings?.parentNote || "",
-      260,
-    );
-
-    doc.text(notes, 15, y);
-
-    // =====================================================
-    // TÊN FILE
-    // =====================================================
-
-    let filename = `hoc-phi-${month}`;
-
-    if (filterType === "class") {
-      filename +=
-        `-lop-${selectedClass.replaceAll(
-          " ",
-          "-",
-        )}`;
-    } else {
-      filename += "-tat-ca";
-    }
-
-    doc.save(`${filename}.pdf`);
-  } catch (e) {
-    console.error(e);
-
-    alert(
-      "Không thể tạo PDF. Hãy kiểm tra font NotoSans.",
-    );
-  } finally {
-    setPdfLoading(false);
-  }
-};
+  };
 
   return (
     <>
@@ -2427,40 +2324,36 @@ const exportPDF = async () => {
 
       <div className="card fee-toolbar">
         <div className="fee-toolbar-top">
-          {/* KIỂU XUẤT */}
           <label className="field">
             <span>Đối tượng</span>
 
             <select
               value={filterType}
-onChange={(e) => {
-  const value = e.target.value;
+              onChange={(e) => {
+                const value = e.target.value;
 
-  setFilterType(value);
+                setFilterType(value);
 
-  if (value === "student") {
-    setSelectedStudent(students[0]?.id || "");
-  }
+                if (value === "student") {
+                  setSelectedStudent(students[0]?.id || "");
+                }
 
-  if (value === "class") {
-    setSelectedClass(classNames[0] || "");
-  }
+                if (value === "class") {
+                  setSelectedClass(classNames[0] || "");
+                }
 
-  if (value === "all") {
-    setSelectedStudent("");
-    setSelectedClass("");
-  }
-}}
+                if (value === "all") {
+                  setSelectedStudent("");
+                  setSelectedClass("");
+                }
+              }}
             >
               <option value="all">Tất cả học sinh</option>
-
               <option value="class">Toàn bộ lớp</option>
-
               <option value="student">Một học sinh</option>
             </select>
           </label>
 
-          {/* CHỌN LỚP */}
           {filterType === "class" && (
             <label className="field">
               <span>Chọn lớp</span>
@@ -2478,7 +2371,6 @@ onChange={(e) => {
             </label>
           )}
 
-          {/* CHỌN HỌC SINH */}
           {filterType === "student" && (
             <label className="field">
               <span>Học sinh</span>
@@ -2496,7 +2388,6 @@ onChange={(e) => {
             </label>
           )}
 
-          {/* THÁNG */}
           <label className="field">
             <span>Tháng</span>
 
@@ -2507,7 +2398,6 @@ onChange={(e) => {
             />
           </label>
 
-          {/* EXPORT */}
           <button
             className="primary pdf-button"
             onClick={exportPDF}
@@ -2516,7 +2406,7 @@ onChange={(e) => {
             {pdfLoading
               ? "Đang tạo PDF..."
               : filterType === "class"
-                ? `📄 Xuất PDF toàn bộ lớp`
+                ? "📄 Xuất PDF toàn bộ lớp"
                 : filterType === "student"
                   ? "📄 Xuất PDF học sinh"
                   : "📄 Xuất PDF tất cả"}
@@ -2567,6 +2457,7 @@ onChange={(e) => {
               const e = getEarned(s);
               const p = getPaid(s);
               const d = e - p;
+              const paymentRecords = getPaymentRecords(s);
 
               return (
                 <tr key={s.id}>
@@ -2589,7 +2480,31 @@ onChange={(e) => {
                     <b>{money(e)}</b>
                   </td>
 
-                  <td className="money-cell">{money(p)}</td>
+                  {/* ==============================
+                      ĐÃ THU + NÚT SỬA
+                     ============================== */}
+                  <td className="money-cell">
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        gap: "6px",
+                      }}
+                    >
+                      <span>{money(p)}</span>
+
+                      {paymentRecords.length > 0 && (
+                        <button
+                          className="icon-btn"
+                          title="Sửa số tiền đã thu"
+                          onClick={() => openEditPayment(s)}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
 
                   <td className="money-cell">
                     <strong className={d > 0 ? "fee-debt" : "fee-paid"}>
@@ -2635,6 +2550,94 @@ onChange={(e) => {
           </tbody>
         </table>
       </div>
+
+      {/* =====================================================
+          MODAL SỬA SỐ TIỀN ĐÃ THU
+         ===================================================== */}
+      {editingPayment && (
+        <div className="modal-bg">
+          <div className="modal">
+            <div className="modal-head">
+              <h2>Sửa số tiền đã thu</h2>
+
+              <button
+                onClick={() => {
+                  setEditingPayment(null);
+                  setEditingAmount("");
+                }}
+              >
+                <X />
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: "12px",
+                marginBottom: "14px",
+                background: "rgba(99,102,241,0.06)",
+                borderRadius: "10px",
+              }}
+            >
+              <b>{editingPayment.student.name}</b>
+
+              <div
+                style={{
+                  marginTop: "4px",
+                  fontSize: "14px",
+                  opacity: 0.75,
+                }}
+              >
+                {editingPayment.student.className || "Chưa có lớp"}
+                {" · "}
+                Tháng {month.slice(5, 7)}/{month.slice(0, 4)}
+              </div>
+            </div>
+
+            <label className="field">
+              <span>Tổng tiền đã thu</span>
+
+              <input
+                type="number"
+                min="0"
+                value={editingAmount}
+                onChange={(e) => setEditingAmount(e.target.value)}
+                autoFocus
+              />
+            </label>
+
+            <div
+              style={{
+                fontSize: "13px",
+                opacity: 0.7,
+                marginTop: "-4px",
+                marginBottom: "12px",
+              }}
+            >
+              Số tiền hiện tại: <b>{money(editingPayment.totalPaid)}</b>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="outline"
+                onClick={() => {
+                  setEditingPayment(null);
+                  setEditingAmount("");
+                }}
+              >
+                Hủy
+              </button>
+
+              <button
+                className="primary"
+                onClick={saveEditedPayment}
+                disabled={editingAmount === "" || Number(editingAmount) < 0}
+              >
+                💾 Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
