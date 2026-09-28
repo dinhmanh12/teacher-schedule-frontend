@@ -61,6 +61,32 @@ function App() {
   const [error, setError] = useState("");
   const [publicData, setPublicData] = useState(null);
 
+  const addRecurringLessons = async (data) => {
+    try {
+      const res = await api("/lessons/recurring", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId: data.studentId,
+          startDate: data.startDate,
+          dayOfWeek: data.dayOfWeek,
+          time: data.time,
+          subject: data.subject,
+          className: data.className || "",
+          room: data.room || "",
+          fee: data.fee,
+        }),
+      });
+
+      setLessons((prev) => [...res.lessons.reverse(), ...prev]);
+
+      setModal(null);
+
+      notify(`Đã tạo ${res.count} buổi học đến hết năm.`);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Không thể tạo ca học.");
+    }
+  };
   const api = async (path, options = {}) => {
     const r = await fetch(`${API}${path}`, {
       headers: {
@@ -369,43 +395,43 @@ function App() {
       alert(e.message || "Không thể tạo link chia sẻ");
     }
   };
-const updatePayment = async (v) => {
-  try {
-    const x = await api("/payments/monthly", {
-      method: "PUT",
-      body: JSON.stringify({
-        studentId: Number(v.studentId),
-        month: v.month,
-        amount: Number(v.amount),
-        note: v.note || "",
-      }),
-    });
+  const updatePayment = async (v) => {
+    try {
+      const x = await api("/payments/monthly", {
+        method: "PUT",
+        body: JSON.stringify({
+          studentId: Number(v.studentId),
+          month: v.month,
+          amount: Number(v.amount),
+          note: v.note || "",
+        }),
+      });
 
-    // Cập nhật state payments ngay lập tức
-    setPayments((prev) => {
-      const filtered = prev.filter(
-        (p) =>
-          !(
-            Number(p.studentId) === Number(v.studentId) &&
-            String(p.month).slice(0, 7) === String(v.month)
-          ),
-      );
+      // Cập nhật state payments ngay lập tức
+      setPayments((prev) => {
+        const filtered = prev.filter(
+          (p) =>
+            !(
+              Number(p.studentId) === Number(v.studentId) &&
+              String(p.month).slice(0, 7) === String(v.month)
+            ),
+        );
 
-      if (x.payment) {
-        return [...filtered, x.payment];
-      }
+        if (x.payment) {
+          return [...filtered, x.payment];
+        }
 
-      return filtered;
-    });
+        return filtered;
+      });
 
-    notify("Đã cập nhật số tiền đã thu");
+      notify("Đã cập nhật số tiền đã thu");
 
-    return x;
-  } catch (e) {
-    alert(e.message || "Không thể cập nhật số tiền đã thu");
-    throw e;
-  }
-};
+      return x;
+    } catch (e) {
+      alert(e.message || "Không thể cập nhật số tiền đã thu");
+      throw e;
+    }
+  };
   const stats = useMemo(() => {
     const earned = attendance
       .filter((x) => x.status === "attended")
@@ -588,6 +614,11 @@ const updatePayment = async (v) => {
                       type: "lesson",
                     })
                   }
+                  onAddRecurring={() =>
+                    setModal({
+                      type: "recurringLesson",
+                    })
+                  }
                   onDelete={deleteLesson}
                 />
               )}
@@ -671,6 +702,16 @@ const updatePayment = async (v) => {
           slots={slots}
           onClose={() => setModal(null)}
           onSave={addLesson}
+          onAddSubject={addSubject}
+        />
+      )}
+      {modal?.type === "recurringLesson" && (
+        <RecurringLessonModal
+          students={students}
+          subjects={subjects}
+          slots={slots}
+          onClose={() => setModal(null)}
+          onSave={addRecurringLessons}
           onAddSubject={addSubject}
         />
       )}
@@ -1504,6 +1545,7 @@ function Attendance({
   attendance,
   onMark,
   onAdd,
+  onAddRecurring,
   onDelete,
 }) {
   const [sid, setSid] = useState(students[0]?.id || "");
@@ -1547,10 +1589,17 @@ function Attendance({
         title="Điểm danh"
         desc="Tất cả các buổi trong tháng. Có thể thêm hoặc xóa từng buổi học."
         action={
-          <button className="primary" onClick={onAdd}>
-            <Plus size={18} />
-            Thêm buổi học
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="primary" onClick={onAdd}>
+              <Plus size={18} />
+              Thêm buổi học
+            </button>
+
+            <button className="secondary" onClick={() => onAddRecurring()}>
+              <CalendarDays size={18} />
+              Thêm ca học
+            </button>
+          </div>
         }
       />
 
@@ -1845,29 +1894,29 @@ function Fees({
   //
   // Nếu hệ thống chỉ tạo 1 payment/tháng thì hoạt động trực tiếp.
   // =========================================================
-const saveEditedPayment = async () => {
-  if (!editingPayment) return;
+  const saveEditedPayment = async () => {
+    if (!editingPayment) return;
 
-  const amount = Number(editingAmount);
+    const amount = Number(editingAmount);
 
-  if (!Number.isFinite(amount) || amount < 0) {
-    alert("Số tiền không hợp lệ.");
-    return;
-  }
+    if (!Number.isFinite(amount) || amount < 0) {
+      alert("Số tiền không hợp lệ.");
+      return;
+    }
 
-  try {
-    await onUpdatePayment({
-      studentId: editingPayment.student.id,
-      month,
-      amount,
-    });
+    try {
+      await onUpdatePayment({
+        studentId: editingPayment.student.id,
+        month,
+        amount,
+      });
 
-    setEditingPayment(null);
-    setEditingAmount("");
-  } catch (e) {
-    console.error(e);
-  }
-};
+      setEditingPayment(null);
+      setEditingAmount("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadFont = async (url) => {
     const r = await fetch(url);
@@ -2075,10 +2124,26 @@ const saveEditedPayment = async () => {
 
         y += 10;
 
+        const qrCode = localStorage.getItem("teacher_qr_code");
+
+        if (qrCode) {
+          y += 8;
+
+          doc.setFont("NotoSans", "bold");
+          doc.text("QR CHUYỂN KHOẢN", 15, y);
+
+          y += 5;
+
+          doc.addImage(qrCode, 15, y, 40, 40);
+
+          y += 46;
+        } else {
+          y += 10;
+        }
+
         doc.setFont("NotoSans", "bold");
 
         doc.text("LƯU Ý", 15, y);
-
         y += 6;
 
         doc.setFont("NotoSans", "normal");
@@ -2283,7 +2348,22 @@ const saveEditedPayment = async () => {
 
       doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
 
-      y += 10;
+      const qrCode = localStorage.getItem("teacher_qr_code");
+
+      if (qrCode) {
+        y += 8;
+
+        doc.setFont("NotoSans", "bold");
+        doc.text("QR CHUYỂN KHOẢN", 15, y);
+
+        y += 5;
+
+        doc.addImage(qrCode, 15, y, 40, 40);
+
+        y += 46;
+      } else {
+        y += 10;
+      }
 
       doc.setFont("NotoSans", "bold");
 
@@ -2646,6 +2726,49 @@ function SettingsPage({ settings, slots, API, onReload, notify }) {
   const [v, setV] = useState(settings || {});
   const [editingSlot, setEditingSlot] = useState(null);
 
+  const handleQrChange = (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (file.size > 1.5 * 1024 * 1024) {
+      alert("Ảnh QR không được vượt quá 1.5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      alert("Chỉ hỗ trợ ảnh PNG, JPG hoặc WEBP.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      localStorage.setItem("teacher_qr_code", reader.result);
+      setV((prev) => ({
+        ...prev,
+        qrCode: reader.result,
+      }));
+
+      notify("Đã thay ảnh QR");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const removeQr = () => {
+    localStorage.removeItem("teacher_qr_code");
+
+    setV((prev) => ({
+      ...prev,
+      qrCode: "",
+    }));
+
+    notify("Đã xóa ảnh QR");
+  };
+
   useEffect(() => {
     setV(settings || {});
   }, [settings]);
@@ -2873,6 +2996,46 @@ function SettingsPage({ settings, slots, API, onReload, notify }) {
               })
             }
           />
+
+          <div className="field">
+            <span>Ảnh QR chuyển khoản</span>
+
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleQrChange}
+            />
+
+            {v.qrCode && (
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: 10,
+                }}
+              >
+                <img
+                  src={v.qrCode}
+                  alt="QR chuyển khoản"
+                  style={{
+                    width: 180,
+                    height: 180,
+                    objectFit: "contain",
+                    border: "1px solid #ddd",
+                    borderRadius: 12,
+                    padding: 8,
+                    background: "#fff",
+                  }}
+                />
+
+                <button type="button" className="outline" onClick={removeQr}>
+                  🗑 Xóa QR
+                </button>
+              </div>
+            )}
+          </div>
 
           <label className="field">
             <span>Lưu ý phụ huynh</span>
@@ -3465,6 +3628,316 @@ function ScheduleModal({ data, onClose, onSave, slots, students }) {
         placeholder="P.101"
       />
     </Modal>
+  );
+}
+
+function RecurringLessonModal({
+  students,
+  subjects,
+  slots,
+  onClose,
+  onSave,
+  onAddSubject,
+}) {
+  const firstStudent = students?.[0];
+
+  const getSlotTime = (slot) => {
+    if (!slot) return "";
+
+    return `${slot.startTime || slot.start || ""} - ${
+      slot.endTime || slot.end || ""
+    }`;
+  };
+
+  const [studentId, setStudentId] = useState(String(firstStudent?.id || ""));
+
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+
+    return `${y}-${m}-${day}`;
+  });
+
+  const [dayOfWeek, setDayOfWeek] = useState("1");
+
+  const [slotId, setSlotId] = useState(String(slots?.[0]?.id || ""));
+
+  // subjects trong App hiện tại là mảng string
+  const [subject, setSubject] = useState(subjects?.[0] || "");
+
+  const [addingSubject, setAddingSubject] = useState(false);
+  const [newSubject, setNewSubject] = useState("");
+
+  const handleStudentChange = (id) => {
+    setStudentId(id);
+  };
+
+  const createSubject = async () => {
+    const name = String(newSubject || "").trim();
+
+    if (!name) {
+      alert("Vui lòng nhập tên môn học.");
+      return;
+    }
+
+    try {
+      const result = await onAddSubject(name);
+
+      if (result) {
+        setSubject(result);
+        setNewSubject("");
+        setAddingSubject(false);
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Không thể thêm môn học.");
+    }
+  };
+
+  const submit = async (e) => {
+    e?.preventDefault();
+
+    if (!studentId) {
+      alert("Vui lòng chọn học sinh.");
+      return;
+    }
+
+    if (!startDate) {
+      alert("Vui lòng chọn ngày bắt đầu.");
+      return;
+    }
+
+    if (!slotId) {
+      alert("Vui lòng chọn ca học.");
+      return;
+    }
+
+    if (!subject) {
+      alert("Vui lòng chọn môn học.");
+      return;
+    }
+
+    const selectedSlot = slots.find(
+      (slot) => String(slot.id) === String(slotId),
+    );
+
+    if (!selectedSlot) {
+      alert("Không tìm thấy ca học.");
+      return;
+    }
+
+    const selectedStudent = students.find(
+      (s) => Number(s.id) === Number(studentId),
+    );
+
+    const time = getSlotTime(selectedSlot);
+
+    if (!time) {
+      alert("Ca học chưa có giờ bắt đầu/kết thúc.");
+      return;
+    }
+
+    await onSave({
+      studentId: Number(studentId),
+      startDate,
+      dayOfWeek: Number(dayOfWeek),
+      time,
+      subject,
+      className: selectedStudent?.className || "",
+      room: "",
+    });
+  };
+
+  return (
+    <div className="modal-bg">
+      <div className="modal">
+        <div className="modal-head">
+          <h2>Thêm ca học</h2>
+
+          <button type="button" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+
+        {/* HỌC SINH */}
+        <label className="field">
+          <span>Học sinh</span>
+
+          <select
+            value={studentId}
+            onChange={(e) => handleStudentChange(e.target.value)}
+          >
+            <option value="">-- Chọn học sinh --</option>
+
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.className ? ` · ${s.className}` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* NGÀY BẮT ĐẦU */}
+        <label className="field">
+          <span>Ngày bắt đầu</span>
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </label>
+
+        {/* THỨ */}
+        <label className="field">
+          <span>Thứ</span>
+
+          <select
+            value={dayOfWeek}
+            onChange={(e) => setDayOfWeek(e.target.value)}
+          >
+            <option value="1">Thứ 2</option>
+            <option value="2">Thứ 3</option>
+            <option value="3">Thứ 4</option>
+            <option value="4">Thứ 5</option>
+            <option value="5">Thứ 6</option>
+            <option value="6">Thứ 7</option>
+            <option value="0">Chủ nhật</option>
+          </select>
+        </label>
+
+        {/* CA HỌC */}
+        <label className="field">
+          <span>Ca học</span>
+
+          <select value={slotId} onChange={(e) => setSlotId(e.target.value)}>
+            <option value="">-- Chọn ca học --</option>
+
+            {slots.map((slot) => {
+              const time = getSlotTime(slot);
+
+              return (
+                <option key={slot.id} value={slot.id}>
+                  {slot.name ? `${slot.name} · ${time}` : time}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+
+        {/* MÔN HỌC */}
+        <label className="field">
+          <span>Môn học</span>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <select
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              style={{
+                flex: 1,
+              }}
+            >
+              <option value="">-- Chọn môn học --</option>
+
+              {subjects.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className="outline"
+              onClick={() => setAddingSubject(!addingSubject)}
+              style={{
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Plus size={16} />
+              Thêm môn
+            </button>
+          </div>
+        </label>
+
+        {/* THÊM MÔN MỚI */}
+        {addingSubject && (
+          <div
+            className="field"
+            style={{
+              background: "rgba(99,102,241,0.06)",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid rgba(99,102,241,0.15)",
+            }}
+          >
+            <span>Tạo môn học mới</span>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+              }}
+            >
+              <input
+                autoFocus
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                placeholder="Ví dụ: Toán"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    createSubject();
+                  }
+                }}
+              />
+
+              <button type="button" className="primary" onClick={createSubject}>
+                Tạo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* THÔNG TIN */}
+        <div
+          style={{
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 8,
+            background: "#f5f7fa",
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          Ca học này sẽ được tự động tạo cho tất cả các tuần từ ngày bắt đầu đến
+          hết ngày
+          <b> 31/12</b>.
+        </div>
+
+        {/* BUTTON */}
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            Hủy
+          </button>
+
+          <button type="button" className="primary" onClick={submit}>
+            <CalendarDays size={18} />
+            Tạo lịch cả năm
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
