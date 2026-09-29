@@ -2094,21 +2094,15 @@ function Fees({
 
         doc.setFont("NotoSans", "bold");
 
-        doc.text(`TỔNG ĐÃ HỌC: ${rows.length} BUỔI`, 15, y);
+        doc.text(`TỔNG HỌC PHÍ: ${money(total)}`, 120, y);
 
-        doc.text(`TỔNG HỌC PHÍ: ${money(total)}`, 110, y);
-
-        y += 7;
-
-        doc.text(`ĐÃ THU: ${money(paid)}`, 15, y);
-
-        doc.text(`CÒN THIẾU: ${money(remaining)}`, 110, y);
-
-        y += 14;
+        y += 15;
 
         doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
 
-        y += 7;
+        const bankStartY = y;
+
+        y += 12;
 
         doc.setFont("NotoSans", "normal");
 
@@ -2122,24 +2116,22 @@ function Fees({
 
         doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
 
-        y += 10;
-
+        // QR nằm bên phải, ngang với thông tin chuyển khoản
         const qrCode = localStorage.getItem("teacher_qr_code");
 
         if (qrCode) {
-          y += 8;
+          const qrX = 125;
+          const qrY = bankStartY;
+          const qrSize = 40;
 
           doc.setFont("NotoSans", "bold");
-          doc.text("QR CHUYỂN KHOẢN", 15, y);
+          doc.text("QR CHUYỂN KHOẢN", qrX, qrY);
 
-          y += 5;
-
-          doc.addImage(qrCode, 15, y, 40, 40);
-
-          y += 46;
-        } else {
-          y += 10;
+          doc.addImage(qrCode, qrX, qrY + 5, qrSize, qrSize);
         }
+        y += 10;
+        // Đưa y xuống dưới cả phần thông tin ngân hàng và QR
+        y = Math.max(y + 10, bankStartY + 52);
 
         doc.setFont("NotoSans", "bold");
 
@@ -2327,65 +2319,75 @@ function Fees({
         },
       });
 
-      let y = doc.lastAutoTable.finalY + 12;
 
-      doc.setFont("NotoSans", "bold");
-      doc.setFontSize(11);
+let y = doc.lastAutoTable.finalY + 12;
 
-      doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
+doc.setFont("NotoSans", "bold");
+doc.setFontSize(11);
 
-      y += 7;
+doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
 
-      doc.setFont("NotoSans", "normal");
+const qrCode = localStorage.getItem("teacher_qr_code");
 
-      doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, y);
+// Vị trí bắt đầu phần thông tin
+let infoY = y + 7;
 
-      y += 6;
+doc.setFont("NotoSans", "normal");
 
-      doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, y);
+doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, infoY);
 
-      y += 6;
+infoY += 6;
 
-      doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
+doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, infoY);
 
-      const qrCode = localStorage.getItem("teacher_qr_code");
+infoY += 6;
 
-      if (qrCode) {
-        y += 8;
+doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, infoY);
 
-        doc.setFont("NotoSans", "bold");
-        doc.text("QR CHUYỂN KHOẢN", 15, y);
+// QR nằm bên phải, ngang hàng với thông tin chuyển khoản
+if (qrCode) {
+  const qrX = 150;
+  const qrY = y + 2;
+  const qrSize = 40;
 
-        y += 5;
+  doc.setFont("NotoSans", "bold");
+  doc.text("QR CHUYỂN KHOẢN", qrX, qrY);
 
-        doc.addImage(qrCode, 15, y, 40, 40);
+  doc.addImage(qrCode, qrX, qrY + 5, qrSize, qrSize);
+}
 
-        y += 46;
-      } else {
-        y += 10;
-      }
+// Xác định vị trí tiếp theo sau phần thông tin / QR
+if (qrCode) {
+  y = Math.max(infoY, y + 5 + 40) + 10;
+} else {
+  y = infoY + 10;
+}
 
-      doc.setFont("NotoSans", "bold");
+doc.setFont("NotoSans", "bold");
 
-      doc.text("LƯU Ý", 15, y);
+doc.text("LƯU Ý", 15, y);
 
-      y += 6;
+y += 6;
 
-      doc.setFont("NotoSans", "normal");
+doc.setFont("NotoSans", "normal");
 
-      const notes = doc.splitTextToSize(settings?.parentNote || "", 260);
+const notes = doc.splitTextToSize(
+  settings?.parentNote || "",
+  180
+);
 
-      doc.text(notes, 15, y);
+doc.text(notes, 15, y);
 
-      let filename = `hoc-phi-${month}`;
+let filename = `hoc-phi-${month}`;
 
-      if (filterType === "class") {
-        filename += `-lop-${selectedClass.replaceAll(" ", "-")}`;
-      } else {
-        filename += "-tat-ca";
-      }
+if (filterType === "class") {
+  filename += `-lop-${selectedClass.replaceAll(" ", "-")}`;
+} else {
+  filename += "-tat-ca";
+}
 
-      doc.save(`${filename}.pdf`);
+doc.save(`${filename}.pdf`);
+
     } catch (e) {
       console.error(e);
 
