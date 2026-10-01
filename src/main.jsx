@@ -2040,8 +2040,22 @@ function Fees({
 
         doc.text(`Số buổi đã học: ${rows.length}`, 110, 45);
 
+        // Nhận xét riêng của học sinh
+        const studentComment = String(s.comment || "").trim();
+        let tableStartY = 52;
+
+        if (studentComment) {
+          doc.setFont("NotoSans", "bold");
+          doc.text("NHẬN XÉT:", 15, 53);
+
+          doc.setFont("NotoSans", "normal");
+          const commentLines = doc.splitTextToSize(studentComment, 165);
+          doc.text(commentLines, 15, 59);
+          tableStartY = 59 + commentLines.length * 5 + 5;
+        }
+
         autoTable(doc, {
-          startY: 52,
+          startY: tableStartY,
 
           head: [["STT", "Ngày", "Thứ", "Giờ", "Môn", "Số tiền"]],
 
@@ -2203,6 +2217,7 @@ function Fees({
           money(total),
           money(paid),
           money(remaining),
+          s.comment || "",
         ];
       });
 
@@ -2236,6 +2251,7 @@ function Fees({
             "Tổng học phí",
             "Đã thu",
             "Còn thiếu",
+            "Nhận xét",
           ],
         ],
 
@@ -2251,6 +2267,7 @@ function Fees({
             money(totalEarnedAll),
             money(totalPaidAll),
             money(totalRemainingAll),
+            "",
           ],
         ],
 
@@ -2310,6 +2327,10 @@ function Fees({
           7: {
             cellWidth: 40,
             halign: "right",
+          },
+
+          8: {
+            cellWidth: 55,
           },
         },
 
@@ -3246,6 +3267,7 @@ function StudentModal({ data, classes, onClose, onSave, onAddClass }) {
         className: data.className || "",
         phone: data.phone || "",
         note: data.note || "",
+        comment: data.comment || "",
         feePerLesson: data.feePerLesson ?? 100000,
         active: data.active ?? 1,
       };
@@ -3256,6 +3278,7 @@ function StudentModal({ data, classes, onClose, onSave, onAddClass }) {
       className: normalizedClasses[0]?.name || "",
       phone: "",
       note: "",
+      comment: "",
       feePerLesson: 100000,
       active: 1,
     };
@@ -3484,6 +3507,24 @@ function StudentModal({ data, classes, onClose, onSave, onAddClass }) {
           })
         }
       />
+
+      <label className="field">
+        <span>Nhận xét học sinh</span>
+        <textarea
+          rows={4}
+          value={v.comment || ""}
+          onChange={(e) =>
+            setV({
+              ...v,
+              comment: e.target.value,
+            })
+          }
+          placeholder="Ví dụ: Chăm chỉ, tiếp thu tốt, cần cải thiện phần..."
+        />
+        <small style={{ color: "#6b7280", fontSize: "12px" }}>
+          Nhận xét này sẽ được hiển thị trên phiếu học phí PDF của học sinh.
+        </small>
+      </label>
     </Modal>
   );
 }
