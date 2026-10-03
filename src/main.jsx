@@ -2108,7 +2108,12 @@ function Fees({
 
         doc.setFont("NotoSans", "bold");
 
-        doc.text(`TỔNG HỌC PHÍ: ${money(total)}`, 120, y);
+        doc.text(
+  `TỔNG HỌC PHÍ: ${money(total)}`,
+  195,
+  y,
+  { align: "right" },
+);
 
         y += 15;
 
@@ -2130,26 +2135,43 @@ function Fees({
 
         doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, y);
 
-        // QR nằm bên phải, ngang với thông tin chuyển khoản
-        const qrCode = localStorage.getItem("teacher_qr_code");
+// QR nằm sát bên phải, ngang với thông tin chuyển khoản
+const qrCode = localStorage.getItem("teacher_qr_code");
 
-        if (qrCode) {
-          const qrX = 125;
-          const qrY = bankStartY;
-          const qrSize = 40;
+if (qrCode) {
+  const qrSize = 40;
 
-          doc.setFont("NotoSans", "bold");
-          doc.text("QR CHUYỂN KHOẢN", qrX, qrY);
+  // A4 dọc = 210mm
+  // Lề phải = 15mm
+  // QR rộng = 40mm
+  // Cạnh phải QR = 195mm
+  const qrX = 210 - 15 - qrSize;
+  const qrY = bankStartY;
 
-          doc.addImage(qrCode, qrX, qrY + 5, qrSize, qrSize);
-        }
+  doc.setFont("NotoSans", "bold");
+
+  doc.text(
+    "QR CHUYỂN KHOẢN",
+    qrX + qrSize / 2,
+    qrY,
+    { align: "center" },
+  );
+
+  doc.addImage(
+    qrCode,
+    qrX,
+    qrY + 5,
+    qrSize,
+    qrSize,
+  );
+}
         y += 10;
         // Đưa y xuống dưới cả phần thông tin ngân hàng và QR
         y = Math.max(y + 10, bankStartY + 52);
 
         doc.setFont("NotoSans", "bold");
 
-        doc.text("LƯU Ý", 15, y);
+        // doc.text("LƯU Ý", 15, y);
         y += 6;
 
         doc.setFont("NotoSans", "normal");
@@ -2238,176 +2260,356 @@ function Fees({
 
       const totalRemainingAll = totalEarnedAll - totalPaidAll;
 
-      autoTable(doc, {
-        startY: 34,
-
-        head: [
-          [
-            "STT",
-            "Học sinh",
-            "Lớp",
-            "Phí/buổi",
-            "Số buổi",
-            "Tổng học phí",
-            "Đã thu",
-            "Còn thiếu",
-            "Nhận xét",
-          ],
-        ],
-
-        body: summaryRows,
-
-        foot: [
-          [
-            "",
-            "TỔNG CỘNG",
-            "",
-            "",
-            totalLessons,
-            money(totalEarnedAll),
-            money(totalPaidAll),
-            money(totalRemainingAll),
-            "",
-          ],
-        ],
-
-        theme: "grid",
-
-        styles: {
-          font: "NotoSans",
-          fontSize: 9,
-          valign: "middle",
-        },
-
-        headStyles: {
-          font: "NotoSans",
-          fontStyle: "bold",
-          halign: "center",
-        },
-
-        footStyles: {
-          font: "NotoSans",
-          fontStyle: "bold",
-        },
-
-        columnStyles: {
-          0: {
-            cellWidth: 13,
-            halign: "center",
-          },
-
-          1: {
-            cellWidth: 55,
-          },
-
-          2: {
-            cellWidth: 40,
-          },
-
-          3: {
-            cellWidth: 35,
-            halign: "right",
-          },
-
-          4: {
-            cellWidth: 25,
-            halign: "center",
-          },
-
-          5: {
-            cellWidth: 40,
-            halign: "right",
-          },
-
-          6: {
-            cellWidth: 40,
-            halign: "right",
-          },
-
-          7: {
-            cellWidth: 40,
-            halign: "right",
-          },
-
-          8: {
-            cellWidth: 55,
-          },
-        },
-
-        margin: {
-          left: 10,
-          right: 10,
-        },
-      });
 
 
-let y = doc.lastAutoTable.finalY + 12;
+autoTable(doc, {
+  startY: 34,
+
+  head: [
+    [
+      "STT",
+      "Học sinh",
+      "Lớp",
+      "Phí/buổi",
+      "Số buổi",
+      "Tổng học phí",
+      "Đã thu",
+      "Còn thiếu",
+      "Nhận xét",
+    ],
+  ],
+
+  body: summaryRows,
+
+  foot: [
+    [
+      "",
+      "TỔNG CỘNG",
+      "",
+      "",
+      totalLessons,
+      money(totalEarnedAll),
+      money(totalPaidAll),
+      money(totalRemainingAll),
+      "",
+    ],
+  ],
+
+  theme: "grid",
+
+  // Cho phép bảng tự động sang trang
+  pageBreak: "auto",
+
+  // Lặp lại header trên mỗi trang
+  showHead: "everyPage",
+
+  // Footer chỉ xuất hiện ở trang cuối
+  showFoot: "lastPage",
+
+  tableWidth: 277,
+
+  styles: {
+    font: "NotoSans",
+    fontSize: 8,
+    valign: "middle",
+    cellPadding: 2,
+    overflow: "linebreak",
+    lineColor: [180, 180, 180],
+    lineWidth: 0.2,
+  },
+
+  headStyles: {
+    font: "NotoSans",
+    fontStyle: "bold",
+    fontSize: 8,
+    halign: "center",
+    valign: "middle",
+  },
+
+  footStyles: {
+    font: "NotoSans",
+    fontStyle: "bold",
+    fontSize: 8,
+    valign: "middle",
+  },
+
+  columnStyles: {
+    0: {
+      cellWidth: 10,
+      halign: "center",
+    },
+
+    1: {
+      cellWidth: 38,
+      halign: "left",
+    },
+
+    2: {
+      cellWidth: 25,
+      halign: "center",
+    },
+
+    3: {
+      cellWidth: 28,
+      halign: "right",
+    },
+
+    4: {
+      cellWidth: 18,
+      halign: "center",
+    },
+
+    5: {
+      cellWidth: 35,
+      halign: "right",
+    },
+
+    6: {
+      cellWidth: 30,
+      halign: "right",
+    },
+
+    7: {
+      cellWidth: 30,
+      halign: "right",
+    },
+
+    8: {
+      cellWidth: 63,
+      halign: "left",
+    },
+  },
+
+  margin: {
+    left: 10,
+    right: 10,
+    top: 34,
+    bottom: 15,
+  },
+
+  didParseCell: function (data) {
+    if (data.section === "foot") {
+      if ([0, 2, 3].includes(data.column.index)) {
+        data.cell.styles.halign = "center";
+      }
+
+      if ([5, 6, 7].includes(data.column.index)) {
+        data.cell.styles.halign = "right";
+      }
+    }
+  },
+});
+
+
+
+
+// =====================================================
+// THÔNG TIN CHUYỂN KHOẢN + QR + GHI CHÚ
+// TỰ ĐỘNG XỬ LÝ XUỐNG TRANG
+// =====================================================
+
+const pageHeight = doc.internal.pageSize.getHeight();
+const pageWidth = doc.internal.pageSize.getWidth();
+
+let y = (doc.lastAutoTable?.finalY || 20) + 10;
+
+const qrCode = localStorage.getItem("teacher_qr_code");
+const qrSize = 40;
+
+// =====================================================
+// KIỂM TRA CÒN ĐỦ CHỖ KHÔNG
+// =====================================================
+
+const requiredHeight = qrCode ? 65 : 35;
+
+if (y + requiredHeight > pageHeight - 15) {
+  doc.addPage();
+  y = 15;
+}
+
+// =====================================================
+// THÔNG TIN CHUYỂN KHOẢN
+// =====================================================
 
 doc.setFont("NotoSans", "bold");
 doc.setFontSize(11);
 
-doc.text("THÔNG TIN CHUYỂN KHOẢN", 15, y);
+doc.text(
+  "THÔNG TIN CHUYỂN KHOẢN",
+  15,
+  y
+);
 
-const qrCode = localStorage.getItem("teacher_qr_code");
+// =====================================================
+// THÔNG TIN NGÂN HÀNG
+// =====================================================
 
-// Vị trí bắt đầu phần thông tin
 let infoY = y + 7;
 
 doc.setFont("NotoSans", "normal");
+doc.setFontSize(10);
 
-doc.text(`Ngân hàng: ${settings?.bankName || ""}`, 15, infoY);
+doc.text(
+  `Ngân hàng: ${settings?.bankName || ""}`,
+  15,
+  infoY
+);
 
 infoY += 6;
 
-doc.text(`Số tài khoản: ${settings?.bankAccount || ""}`, 15, infoY);
+doc.text(
+  `Số tài khoản: ${settings?.bankAccount || ""}`,
+  15,
+  infoY
+);
 
 infoY += 6;
 
-doc.text(`Chủ tài khoản: ${settings?.bankOwner || ""}`, 15, infoY);
+doc.text(
+  `Chủ tài khoản: ${settings?.bankOwner || ""}`,
+  15,
+  infoY
+);
 
-// QR nằm bên phải, ngang hàng với thông tin chuyển khoản
+// =====================================================
+// QR CODE
+// =====================================================
+
 if (qrCode) {
-  const qrX = 150;
-  const qrY = y + 2;
-  const qrSize = 40;
+
+  const qrX = pageWidth - 10 - qrSize;
+  const qrY = y + 5;
 
   doc.setFont("NotoSans", "bold");
-  doc.text("QR CHUYỂN KHOẢN", qrX, qrY);
+  doc.setFontSize(10);
 
-  doc.addImage(qrCode, qrX, qrY + 5, qrSize, qrSize);
+  doc.text(
+    "QR CHUYỂN KHOẢN",
+    qrX + qrSize / 2,
+    qrY,
+    {
+      align: "center",
+    }
+  );
+
+  doc.addImage(
+    qrCode,
+    qrX,
+    qrY + 4,
+    qrSize,
+    qrSize
+  );
 }
 
-// Xác định vị trí tiếp theo sau phần thông tin / QR
+// =====================================================
+// XÁC ĐỊNH VỊ TRÍ SAU PHẦN NGÂN HÀNG / QR
+// =====================================================
+
 if (qrCode) {
-  y = Math.max(infoY, y + 5 + 40) + 10;
+
+  y = Math.max(
+    infoY,
+    y + 5 + 4 + qrSize
+  ) + 10;
+
 } else {
+
   y = infoY + 10;
 }
 
-doc.setFont("NotoSans", "bold");
+// =====================================================
+// GHI CHÚ
+// =====================================================
 
-doc.text("LƯU Ý", 15, y);
+const noteText = settings?.parentNote || "";
 
-y += 6;
+if (noteText.trim()) {
 
-doc.setFont("NotoSans", "normal");
+  // ---------------------------------------------------
+  // Kiểm tra còn đủ chỗ cho ghi chú
+  // ---------------------------------------------------
 
-const notes = doc.splitTextToSize(
-  settings?.parentNote || "",
-  180
-);
+  if (y + 15 > pageHeight - 15) {
+    doc.addPage();
+    y = 15;
+  }
 
-doc.text(notes, 15, y);
+  doc.setFont("NotoSans", "normal");
+  doc.setFontSize(10);
+
+  // ---------------------------------------------------
+  // Chia ghi chú thành nhiều dòng
+  // ---------------------------------------------------
+
+  const notes = doc.splitTextToSize(
+    noteText,
+    pageWidth - 30
+  );
+
+  const lineHeight = 5;
+
+  let currentIndex = 0;
+
+  // ---------------------------------------------------
+  // Tự động chia ghi chú sang nhiều trang
+  // ---------------------------------------------------
+
+  while (currentIndex < notes.length) {
+
+    const availableHeight =
+      pageHeight - 15 - y;
+
+    const maxLines = Math.max(
+      1,
+      Math.floor(
+        availableHeight / lineHeight
+      )
+    );
+
+    const linesThisPage = notes.slice(
+      currentIndex,
+      currentIndex + maxLines
+    );
+
+    doc.text(
+      linesThisPage,
+      15,
+      y
+    );
+
+    currentIndex += linesThisPage.length;
+
+    // Nếu còn ghi chú -> sang trang mới
+    if (currentIndex < notes.length) {
+
+      doc.addPage();
+
+      y = 15;
+    }
+  }
+}
+
+// =====================================================
+// TÊN FILE PDF
+// =====================================================
 
 let filename = `hoc-phi-${month}`;
 
 if (filterType === "class") {
-  filename += `-lop-${selectedClass.replaceAll(" ", "-")}`;
+
+  filename += `-lop-${selectedClass.replaceAll(
+    " ",
+    "-"
+  )}`;
+
 } else {
+
   filename += "-tat-ca";
 }
 
 doc.save(`${filename}.pdf`);
+
+
 
     } catch (e) {
       console.error(e);
